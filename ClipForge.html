@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClipForge | ゆっくり口パクスタジオ</title>
+<style>
+:root{color-scheme:dark;--bg:#10121b;--panel:#191d2b;--line:#30374c;--text:#f4f6ff;--muted:#aab2cb;--accent:#8b7cff;--cyan:#63d9d0}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#202443 0,#10121b 55%);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Noto Sans JP",sans-serif}
+header{padding:24px max(18px,calc((100% - 1180px)/2));border-bottom:1px solid var(--line);background:#111421cc}
+.brand{font-size:24px;font-weight:850;letter-spacing:.3px}.brand span{color:var(--accent)}header p{color:var(--muted);margin:5px 0 0}
+main{max-width:1180px;margin:22px auto;padding:0 16px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:18px}
+.panel{background:linear-gradient(160deg,#1b2030,#171a27);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 14px 35px #0002}.panel h2{font-size:17px;margin:0 0 14px}.section{margin-bottom:18px}.section:last-child{margin-bottom:0}
+label{display:block;font-size:13px;color:#c5cbe0;margin-bottom:6px}.filebox{display:block;border:1px dashed #525b7b;border-radius:12px;padding:12px;background:#111522;cursor:pointer}.filebox input{width:100%;font-size:13px;margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+input[type=number],select{width:100%;background:#101421;color:var(--text);border:1px solid #39415a;border-radius:9px;padding:10px}
+button{border:0;border-radius:10px;padding:11px 14px;font-weight:750;cursor:pointer;background:var(--accent);color:white}button.secondary{background:#292f45;border:1px solid #424b68}button.green{background:#168b7e}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+.preview{min-height:360px;display:flex;align-items:center;justify-content:center;background-color:#111522;background-image:linear-gradient(45deg,#22283a 25%,transparent 25%),linear-gradient(-45deg,#22283a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#22283a 75%),linear-gradient(-45deg,transparent 75%,#22283a 75%);background-size:22px 22px;background-position:0 0,0 11px,11px -11px,-11px 0;border-radius:14px;border:1px solid #343b53;overflow:hidden}
+canvas{display:block;max-width:100%;max-height:520px;width:auto;height:auto;object-fit:contain}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}.status{padding:10px 12px;background:#111522;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:13px;margin-top:12px;white-space:pre-wrap}
+.pill{display:inline-block;border:1px solid #414968;background:#252b40;border-radius:99px;padding:4px 9px;font-size:11px;color:#d8dcf5;margin:0 4px 8px 0}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 24px;color:var(--muted);font-size:12px}
+@media(max-width:800px){main{grid-template-columns:1fr}.preview{min-height:280px}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="brand">Clip<span>Forge</span> <span style="color:#c6caff;font-size:13px;font-weight:600">BETA</span></div><p>ゆっくり口パクスタジオ — 音声と立ち絵から、口パク動画を作成</p></header>
+<main>
+<section class="panel">
+<h2>① 素材を読み込む</h2>
+<div class="grid2 section">
+ <label class="filebox">通常の立ち絵（口閉じ）<input id="closed" type="file" accept="image/*"></label>
+ <label class="filebox">目閉じ立ち絵（任意,口閉じのみ）<input id="eyesClosed" type="file" accept="image/*"></label>
+</div>
+<div class="grid2 section">
+ <label class="filebox">口を開けた立ち絵<input id="open" type="file" accept="image/*"></label>
+ <label class="filebox">半開き立ち絵（任意）<input id="half" type="file" accept="image/*"></label>
+</div>
+<div class="section"><label class="filebox">ゆっくり音声ファイル<input id="audioFile" type="file" accept="audio/*"></label><audio id="audio" controls style="width:100%;margin-top:10px;display:none"></audio></div>
+<h2>② 口パク設定</h2>
+<div class="grid2 section">
+ <div><label for="halfTime">半開きの先行時間（秒）</label><input id="halfTime" type="number" min="0" max="1" step=".05" value=".1"></div>
+ <div><label for="fps">出力フレームレート</label><select id="fps"><option value="30">30 FPS</option><option value="24">24 FPS</option><option value="60">60 FPS</option></select></div>
+</div>
+<div class="grid2 section">
+ <div><label for="width">動画幅</label><select id="width"><option value="1920">1920（フルHD）</option><option value="1280">1280（HD）</option><option value="1080">1080（Shorts向け縦）</option></select></div>
+ <div><label for="ratio">画面比率</label><select id="ratio"><option value="16:9">16:9 横動画</option><option value="9:16">9:16 Shorts</option><option value="1:1">1:1 正方形</option></select></div>
+</div>
+<div class="section">
+<label for="bgMode">③ 背景モード（クロマキー合成用）</label>
+<select id="bgMode" style="color:#000;background:#fff">
+<option value="transparent" style="color:#000;background:#fff">透過（背景なし）</option>
+<option value="green" style="color:var(--text);background:#101421">グリーンバック（GB）</option>
+<option value="red" style="color:var(--text);background:#101421">レッドバック（RB）</option>
+<option value="blue" style="color:var(--text);background:#101421">ブルーバック（BB）</option>
+</select>
+<p class="hint">透過(背景なし)で保存すると背景が透明な動画(WebM)を生成します。GB・RB・BBを選ぶと単色背景動画になります。</p>
+</div>
+<div class="actions"><button id="previewBtn">▶ プレビュー再生</button><button class="secondary" id="stopBtn">■ 停止</button><button class="green" id="exportBtn">動画を書き出す</button></div>
+<div id="status" class="status">素材を読み込んでください。</div>
+</section>
+<section class="panel">
+<h2>ライブプレビュー <span class="pill" id="pillLabel">背景透過キャンバス</span></h2>
+<div class="preview"><canvas id="canvas" width="960" height="540"></canvas></div>
+<p class="hint">透過モードでは透明情報に対応したWebM（VP9）での出力を試みます。GB・RB・BBでは選択した単色背景も動画に書き出され、クロマキー合成に使えます。</p>
+<div class="status" id="details">口パク待機中 · 口閉じ画像を表示します</div>
+</section>
+</main>
+<footer>ClipForge prototype · ファイルはこのブラウザ内で処理され、サーバーへアップロードしません。</footer>
+<script>
+const $=id=>document.getElementById(id);
+const canvas=$('canvas'),ctx=canvas.getContext('2d');
+const imgs={closed:null,open:null,half:null,eyesClosed:null}; 
+let audioUrl=null, raf=0, playing=false, exporting=false, audioCtx=null, mediaSourceNode=null;
+
+let blinkTimes = [];
+let noAudioStartTime = 0;
+
+function say(t){$('status').textContent=t}
+function loadImg(input,key){$(input).addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const url=URL.createObjectURL(f),im=new Image();im.onload=()=>{
+ imgs[key]=im;
+ generateBlinkSchedule();
+ drawAt(0);
+ say(`${f.name} を読み込みました`);
+};im.onerror=()=>say('画像を読み込めませんでした');im.src=url;});}
+
+loadImg('closed','closed');
+loadImg('open','open');
+loadImg('half','half');
+loadImg('eyesClosed','eyesClosed');
+
+// 1秒(1.0s)ごとに20% (1/5) の確率で抽選するロジック（クールタイム3秒）
+function generateBlinkSchedule(){
+ if(!imgs.eyesClosed) return;
+ const dur = ($('audio').src && $('audio').duration) ? $('audio').duration : 3600;
+ blinkTimes = [];
+ let t = 1.0;
+ while(t < dur + 5) {
+  if(Math.random() < 0.2) { // 20%の確率で当たった場合
+   blinkTimes.push(t);
+   t += 3.0; // クールタイム3秒を加算
+  } else {
+   t += 1.0; // はずれた場合は1秒進めて次の秒で再抽選
+  }
+ }
+}
+
+$('audioFile').addEventListener('change', e=>{
+ const f=e.target.files[0];if(!f)return;
+ if(audioUrl)URL.revokeObjectURL(audioUrl);
+ audioUrl=URL.createObjectURL(f);
+ $('audio').src=audioUrl;
+ $('audio').style.display='block';
+ $('audio').load();
+ mediaSourceNode = null;
+ say(`音声を読み込みました: ${f.name}`);
+});
+
+$('audio').onloadedmetadata = () => {
+ generateBlinkSchedule();
+};
+
+function setCanvasSize(){let w=+$('width').value,ratio=$('ratio').value,h=ratio==='16:9'?Math.round(w*9/16):ratio==='9:16'?Math.round(w*16/9):w;if(ratio==='9:16'&&w===1920)w=1080;canvas.width=w;canvas.height=h;drawAt(0)}
+$('width').addEventListener('change',setCanvasSize);$('ratio').addEventListener('change',setCanvasSize);
+
+function updateBgModeStyle(){
+  const s=$('bgMode');
+  if(s.value==='transparent'){
+    s.style.color='#000';
+    s.style.backgroundColor='#fff';
+    $('pillLabel').textContent = '背景透過キャンバス';
+  }else{
+    s.style.color='var(--text)';
+    s.style.backgroundColor='#101421';
+    $('pillLabel').textContent = s.options[s.selectedIndex].text;
+  }
+}
+$('bgMode').addEventListener('change',()=>{updateBgModeStyle();drawAt(getCurrentTime());});
+updateBgModeStyle();
+
+function getCurrentTime(){
+ if($('audio').src && !$('audio').paused){
+  return $('audio').currentTime;
+ }
+ if(playing && !$('audio').src){
+  return (performance.now() - noAudioStartTime) / 1000;
+ }
+ return 0;
+}
+
+function isSpeakingAt(t){
+ const a = $('audio');
+ if(!a.src) return false;
+ const dur = a.duration || 0;
+ const data = window.audioEnergy || [];
+ if(!dur || !data.length) return false;
+ const idx = Math.min(data.length - 1, Math.floor(t / dur * data.length));
+ return data[idx] > .018;
+}
+
+function isBlinkingAt(t){
+ if(!imgs.eyesClosed) return false;
+ const blinkDuration = 0.15; // 瞬きの持続時間 0.1秒
+ return blinkTimes.some(bt => t >= bt && t < bt + blinkDuration);
+}
+
+function imageFor(t){
+ const a = $('audio');
+ const halfT = Math.max(0, +$('halfTime').value || .1);
+ const speaking = isSpeakingAt(t);
+
+ if(!speaking && isBlinkingAt(t)){
+  return imgs.eyesClosed;
+ }
+
+ if(!imgs.open) return imgs.closed;
+ if(!imgs.closed) return imgs.open;
+ const data = window.audioEnergy || [];
+ const dur = a.duration || 0;
+ if(!a.src || !dur || !data.length) return imgs.closed;
+ 
+ const idx = Math.min(data.length - 1, Math.floor(t / dur * data.length));
+ if(speaking){
+  let onset = idx; while(onset > 0 && data[onset-1] > .018) onset--;
+  const onsetTime = onset / data.length * dur;
+  if(imgs.half && t - onsetTime < halfT) return imgs.half;
+  return imgs.open;
+ }
+ return imgs.closed;
+}
+
+function drawAt(t){
+ ctx.clearRect(0, 0, canvas.width, canvas.height);
+ const bg = $('bgMode')?.value || 'transparent';
+ if(bg === 'green'){ ctx.fillStyle = '#00FF00'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+ else if(bg === 'red'){ ctx.fillStyle = '#FF0000'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+ else if(bg === 'blue'){ ctx.fillStyle = '#0000FF'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+ 
+ const im = imageFor(t);
+ if(!im){
+  ctx.fillStyle = '#9ba4c4'; ctx.textAlign = 'center'; ctx.font = '22px system-ui';
+  ctx.fillText('立ち絵を読み込むとここに表示されます', canvas.width/2, canvas.height/2);
+  return;
+ }
+ const scale = Math.min(canvas.width / im.width, canvas.height / im.height);
+ const w = im.width * scale, h = im.height * scale;
+ ctx.drawImage(im, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+
+ const stateText = im===imgs.eyesClosed?'瞬き':im===imgs.open?'口開き':im===imgs.half?'半開き':'口閉じ';
+ $('details').textContent = `${playing?'再生中':'待機中'} · ${t.toFixed(2)} 秒 · ${stateText}`;
+}
+
+async function analyseAudio(){
+ const file = $('audioFile').files[0];
+ if(!file) return;
+ const ac = new (window.AudioContext || window.webkitAudioContext)();
+ const buf = await ac.decodeAudioData(await file.arrayBuffer());
+ const ch = buf.getChannelData(0), step = Math.max(1, Math.floor(buf.sampleRate * .025));
+ const arr = [];
+ for(let i = 0; i < ch.length; i += step){
+  let sum = 0, n = Math.min(step, ch.length - i);
+  for(let j = 0; j < n; j++) sum += ch[i+j] * ch[i+j];
+  arr.push(Math.sqrt(sum / n));
+ }
+ const max = Math.max(...arr, 0.0001);
+ window.audioEnergy = arr.map(v => v / max);
+ await ac.close();
+}
+
+function loop(){
+ if(!playing) return;
+ const t = getCurrentTime();
+ drawAt(t);
+ raf = requestAnimationFrame(loop);
+}
+
+$('previewBtn').onclick = async () => {
+ if(!imgs.closed && !imgs.open){ say('先に立ち絵を読み込んでください'); return; }
+ 
+ generateBlinkSchedule();
+ playing = true;
+ cancelAnimationFrame(raf);
+
+ if($('audio').src){
+  try{
+   await analyseAudio();
+   $('audio').currentTime = 0;
+   await $('audio').play();
+   loop();
+   $('audio').onended = () => {
+    playing = false;
+    drawAt(0);
+    cancelAnimationFrame(raf);
+   };
+  }catch(e){
+   say('再生できませんでした: ' + e.message);
+  }
+ } else {
+  noAudioStartTime = performance.now();
+  loop();
+  say('音声なしプレビュー再生中（停止ボタンで終了）');
+ }
+};
+
+$('stopBtn').onclick = () => {
+ playing = false;
+ if($('audio').src){
+  $('audio').pause();
+ }
+ cancelAnimationFrame(raf);
+ drawAt(0);
+ say('停止しました');
+};
+
+function chooseMime(){
+  const transparent = $('bgMode').value === 'transparent';
+  const opts = transparent
+    ? ['video/webm;codecs=vp9','video/webm;codecs=vp9,opus','video/webm']
+    : ['video/mp4;codecs=h264,aac','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return opts.find(x => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || '';
+}
+
+$('exportBtn').onclick = async () => {
+ if(exporting) return;
+ if(!imgs.closed && !imgs.open){ say('先に立ち絵を読み込んでください'); return; }
+ if(!$('audio').src){ say('書き出しにはゆっくり音声ファイルが必要です。音声読み込みを行ってください。'); return; }
+ if(!window.MediaRecorder || !canvas.captureStream){ say('このブラウザは動画書き出しに対応していません'); return; }
+
+ exporting = true;
+ $('exportBtn').disabled = true;
+
+ try{
+  await analyseAudio();
+  generateBlinkSchedule();
+  
+  const a = $('audio');
+  a.pause();
+  a.currentTime = 0;
+  playing = true;
+  drawAt(0);
+
+  const fps = +$('fps').value;
+  const stream = canvas.captureStream(fps);
+
+  try{
+   if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+   if(audioCtx.state === 'suspended') await audioCtx.resume();
+   
+   if(!mediaSourceNode){
+    mediaSourceNode = audioCtx.createMediaElementSource(a);
+   }
+   const dest = audioCtx.createMediaStreamDestination();
+   mediaSourceNode.disconnect();
+   mediaSourceNode.connect(dest);
+   mediaSourceNode.connect(audioCtx.destination);
+   
+   dest.stream.getAudioTracks().forEach(tr => stream.addTrack(tr));
+  }catch(e){
+   console.warn('audio stream capture fallback', e);
+  }
+
+  const mime = chooseMime();
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+
+  rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+  rec.onerror = e => say('書き出しエラー: ' + (e.error?.message || '不明なエラー'));
+
+  rec.onstop = () => {
+   playing = false;
+   cancelAnimationFrame(raf);
+   const type = rec.mimeType || 'video/webm';
+   const ext = type.includes('mp4') ? 'mp4' : 'webm';
+   const blob = new Blob(chunks, { type });
+   const url = URL.createObjectURL(blob);
+   const link = document.createElement('a');
+   link.href = url;
+   link.download = 'clipforge-lipsync.' + ext;
+   document.body.appendChild(link);
+   link.click();
+   link.remove();
+   setTimeout(() => URL.revokeObjectURL(url), 60000);
+   stream.getTracks().forEach(t => t.stop());
+   drawAt(0);
+   say(`書き出し完了！ ${ext.toUpperCase()} / ${(blob.size/1024/1024).toFixed(1)} MB`);
+   exporting = false;
+   $('exportBtn').disabled = false;
+  };
+
+  a.onended = () => {
+   setTimeout(() => {
+    if(rec.state !== 'inactive') rec.stop();
+   }, 300);
+  };
+
+  rec.start(250);
+  await a.play();
+  loop();
+  say('書き出し中… 音声の再生が終わるまでこのタブを開いたままにしてください。');
+
+ }catch(e){
+  playing = false;
+  exporting = false;
+  $('exportBtn').disabled = false;
+  say('書き出しに失敗しました: ' + e.message);
+ }
+};
+
+drawAt(0);
+</script>
+</body>
+</html>
