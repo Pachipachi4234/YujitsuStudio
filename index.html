@@ -3,73 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YuJitsu Studio | 統合スイート</title>
+    <title>YuJitsu Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .tab-active {
-            border-bottom: 2px solid #fd8c73;
-            color: #c9d1d9;
-            font-weight: 600;
-        }
-        .tab-inactive {
-            color: #8b949e;
-            border-bottom: 2px solid transparent;
-        }
-        .tab-inactive:hover {
-            background-color: rgba(177, 186, 196, 0.12);
-            color: #c9d1d9;
-            border-radius: 6px 6px 0 0;
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .tab-btn.active {
+            border-bottom: 2px solid #f78166;
+            color: #ffffff;
+            font-weight: bold;
         }
     </style>
 </head>
-<body class="bg-[#0d1117] flex flex-col h-screen overflow-hidden text-sm font-sans">
-    
-    <!-- Header (GitHub Style) -->
-    <header class="bg-[#161b22] border-b border-[#30363d]">
-        <div class="px-4 py-3 flex items-center gap-3">
-            <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center shadow-lg">
-                <span class="text-white font-bold text-lg leading-none mt-[-2px]">Y</span>
-            </div>
-            <h1 class="text-[#c9d1d9] font-semibold text-lg">YuJitsu Studio</h1>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- ナビゲーションバー -->
+    <header class="bg-[#161b22] border-b border-[#30363d] px-6 py-3 flex items-center justify-between flex-none">
+        <div class="flex items-center space-x-3">
+            <div class="bg-[#8957e5] text-white font-extrabold px-3 py-1 rounded-lg text-lg">Y</div>
+            <h1 class="text-xl font-bold text-white tracking-wide">YuJitsu Studio</h1>
         </div>
         
-        <nav class="flex px-4 gap-2" id="tabs">
-            <button class="px-4 py-2 flex items-center gap-2 tab-active transition" data-target="clipforge">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><path d="M1.5 2.75a.25.25 0 0 1 .25-.25h12.5a.25.25 0 0 1 .25.25v10.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V2.75Zm1-.75v10.5h11V2H2.5Z"></path><path d="M7 5.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5Zm0 3a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5ZM7 11.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5ZM3.5 5h2v6h-2z"></path></svg>
-                ClipForge
+        <!-- タブ切り替えボタン -->
+        <nav class="flex space-x-6 text-sm text-gray-400">
+            <button onclick="switchTab('clipforge')" id="tab-clipforge" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
+                <span>📋</span> ClipForge
             </button>
-            <button class="px-4 py-2 flex items-center gap-2 tab-inactive transition" data-target="voicechanger">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><path d="M8 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm5.5-2.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z"></path><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM.5 8a7.5 7.5 0 1 1 15 0 7.5 7.5 0 0 1-15 0Z"></path></svg>
-                VoiceChanger
+            <button onclick="switchTab('voicechanger')" id="tab-voicechanger" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
+                <span>🎤</span> VoiceChanger
             </button>
-            <button class="px-4 py-2 flex items-center gap-2 tab-inactive transition" data-target="autostudio">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><path d="M0 3.75C0 2.784.784 2 1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25ZM3.5 9h9v1.5h-9ZM3.5 6h5v1.5h-5Z"></path></svg>
-                AutoStudio
+            <button onclick="switchTab('autostudio')" id="tab-autostudio" class="tab-btn active py-2 px-1 hover:text-white transition flex items-center gap-1">
+                <span>📺</span> AutoStudio
             </button>
         </nav>
     </header>
 
-    <!-- Main Workspace -->
-    <main class="flex-1 relative bg-[#010409]">
-        <iframe id="frame-clipforge" src="https://pachipachi4234.github.io/Clipforge/" class="absolute inset-0 w-full h-full border-none block"></iframe>
-        <iframe id="frame-voicechanger" src="https://pachipachi4234.github.io/moddel-one/" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
-        <!-- AutoTelop リポジトリ内の AutoStudio.html を絶対URLで確実に読み込みます -->
-        <iframe id="frame-autostudio" src="https://pachipachi4234.github.io/AutoTelop/AutoStudio.html" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+    <!-- iframe表示エリア -->
+    <main class="flex-1 bg-[#0d1117] relative">
+        <iframe id="app-frame" src="AutoStudio.html" class="w-full h-full border-none"></iframe>
     </main>
 
     <script>
-        const tabs = document.querySelectorAll('#tabs button');
-        const frames = document.querySelectorAll('main iframe');
+        const routes = {
+            'clipforge': 'ClipForge.html',
+            'voicechanger': 'VoiceChanger.html',
+            'autostudio': 'AutoStudio.html'
+        };
 
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                tabs.forEach(t => { t.classList.remove('tab-active'); t.classList.add('tab-inactive'); });
-                tab.classList.add('tab-active'); tab.classList.remove('tab-inactive');
-                
-                frames.forEach(f => f.classList.replace('block', 'hidden'));
-                document.getElementById('frame-' + tab.dataset.target).classList.replace('hidden', 'block');
-            });
-        });
+        function switchTab(tabName) {
+            // タブの見た目を切り替え
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            // iframeの読み込み先を変更
+            const frame = document.getElementById('app-frame');
+            if (routes[tabName]) {
+                frame.src = routes[tabName];
+            }
+        }
     </script>
 </body>
 </html>
