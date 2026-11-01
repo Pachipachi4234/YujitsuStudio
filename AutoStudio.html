@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AutoTelop | AI自動字幕起こし</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0d1117] text-[#c9d1d9] min-h-screen p-6 md:p-12 font-sans">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <header class="border-b border-[#30363d] pb-4">
+            <h1 class="text-3xl font-bold text-[#58a6ff]">AutoTelop (自動字幕ジェネレーター)</h1>
+            <p class="text-[#8b949e] mt-2">動画や音声を読み込み、ブラウザ内のAIで文字起こしをします。1秒以上の無音を検知して自動で改行します。</p>
+        </header>
+
+        <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg">
+            <label class="block mb-2 font-semibold">1. 音声・動画ファイルを選択 (mp4, mp3, wav等)</label>
+            <input type="file" id="fileInput" accept="audio/*,video/*" class="block w-full text-sm text-[#8b949e]
+                file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0
+                file:text-sm file:font-semibold file:bg-[#238636] file:text-white
+                hover:file:bg-[#2ea043] cursor-pointer">
+            
+            <button id="startBtn" class="mt-6 bg-[#238636] hover:bg-[#2ea043] text-white px-6 py-2.5 rounded-md font-bold w-full transition disabled:opacity-50 disabled:cursor-not-allowed">
+                字幕生成を開始する
+            </button>
+        </div>
+
+        <div id="statusContainer" class="hidden bg-[#1f2428] border border-[#30363d] rounded-lg p-4 font-mono text-sm">
+            <div class="flex items-center gap-3">
+                <svg id="spinner" class="animate-spin h-5 w-5 text-[#58a6ff]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span id="statusText" class="text-[#58a6ff]">準備中...</span>
+            </div>
+            <div id="progressWrapper" class="mt-3 w-full bg-[#0d1117] rounded-full h-2.5 hidden border border-[#30363d]">
+                <div id="progressBar" class="bg-[#58a6ff] h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="flex justify-between items-end mb-2">
+                <label class="block font-semibold">2. 抽出されたテキスト</label>
+                <button id="copyBtn" class="text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] px-3 py-1 rounded transition">一括コピー</button>
+            </div>
+            <textarea id="output" class="w-full h-80 bg-[#0d1117] border border-[#30363d] rounded-lg p-4 text-[#c9d1d9] focus:outline-none focus:border-[#58a6ff] resize-y" placeholder="ここに字幕が出力されます..."></textarea>
+        </div>
+    </div>
+
+<script type="module">
+    // Hugging Face Transformers.js (ブラウザ用AIライブラリ) を読み込み
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
+    env.allowLocalModels = false; // CDNからモデルを取得
+
+    const startBtn = document.getElementById('startBtn');
+    const fileInput = document.getElementById('fileInput');
+    const statusContainer = document.getElementById('statusContainer');
+    const statusText = document.getElementById('statusText');
+    const spinner = document.getElementById('spinner');
+    const progressWrapper = document.getElementById('progressWrapper');
+    const progressBar = document.getElementById('progressBar');
+    const outputArea = document.getElementById('output');
+    const copyBtn = document.getElementById('copyBtn');
+
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(outputArea.value);
+        const originalText = copyBtn.innerText;
+        copyBtn.innerText = "コピー完了！";
+        setTimeout(() => copyBtn.innerText = originalText, 2000);
+    });
+
+    startBtn.addEventListener('click', async () => {
+        if (!fileInput.files.length) {
+            alert('ファイルを選択してください！');
+            return;
+        }
+        
+        startBtn.disabled = true;
+        outputArea.value = '';
+        statusContainer.classList.remove('hidden');
+        spinner.classList.remove('hidden');
+        progressWrapper.classList.add('hidden');
+        
+        try {
+            statusText.innerText = "① AIモデル(Whisper)を読み込んでいます... (初回のみ約50MBの通信が発生します)";
+            progressWrapper.classList.remove('hidden');
+            
+            // Whisper Tiny モデルの読み込み
+            const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+                progress_callback: (info) => {
+                    if (info.status === 'downloading' && info.name === 'Xenova/whisper-tiny') {
+                        const progress = info.progress || 0;
+                        progressBar.style.width = progress + '%';
+                        statusText.innerText = `① モデルをダウンロード中... ${Math.round(progress)}%`;
+                    }
+                }
+            });
+
+            progressWrapper.classList.add('hidden');
+            statusText.innerText = "② 音声データを解析用に変換中...";
+            
+            const file = fileInput.files[0];
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            const arrayBuffer = await file.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            const audioData = audioBuffer.getChannelData(0);
+
+            statusText.innerText = "③ AIが文字起こしを実行中... (音声の長さによって数分かかります)";
+            
+            // 文字起こしとタイムスタンプの取得
+            const result = await transcriber(audioData, {
+                chunk_length_s: 30,
+                stride_length_s: 5,
+                language: 'japanese',
+                task: 'transcribe',
+                return_timestamps: true
+            });
+
+            spinner.classList.add('hidden');
+            statusText.innerText = "✨ 完了しました！";
+            
+            let formattedText = "";
+            let chunks = result.chunks || [];
+            
+            if(chunks.length === 0) {
+                formattedText = result.text;
+            } else {
+                for (let i = 0; i < chunks.length; i++) {
+                    const chunk = chunks[i];
+                    formattedText += chunk.text.trim();
+                    
+                    if (i < chunks.length - 1) {
+                        const currentEnd = chunk.timestamp[1];
+                        const nextStart = chunks[i+1].timestamp[0];
+                        
+                        // 【要件】無音が1.0秒以上空いている場合は改行、そうでない場合は隙間をあける
+                        if (nextStart - currentEnd >= 1.0) {
+                            formattedText += "\n\n";
+                        } else {
+                            formattedText += " ";
+                        }
+                    }
+                }
+            }
+
+            outputArea.value = formattedText;
+            
+        } catch (e) {
+            spinner.classList.add('hidden');
+            progressWrapper.classList.add('hidden');
+            statusText.innerText = "❌ エラーが発生しました: " + e.message;
+            console.error(e);
+        } finally {
+            startBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
