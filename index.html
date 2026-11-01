@@ -34,6 +34,7 @@
         </div>
         
         <nav class="flex px-4 gap-2" id="tabs">
+            <!-- 各タブの data-target が下の iframe の id と連動します -->
             <button class="px-4 py-2 flex items-center gap-2 tab-active transition" data-target="clipforge">
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><path d="M1.5 2.75a.25.25 0 0 1 .25-.25h12.5a.25.25 0 0 1 .25.25v10.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V2.75Zm1-.75v10.5h11V2H2.5Z"></path><path d="M7 5.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5Zm0 3a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5ZM7 11.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5ZM3.5 5h2v6h-2z"></path></svg>
                 ClipForge
@@ -51,33 +52,28 @@
 
     <!-- Main Workspace -->
     <main class="flex-1 relative bg-[#010409]">
-        <iframe id="frame-clipforge" class="absolute inset-0 w-full h-full border-none block"></iframe>
-        <iframe id="frame-voicechanger" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
-        <iframe id="frame-autotelop" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        <!-- 1. ClipForge (すでにGitHub公開済みのURLを直接読み込み) -->
+        <iframe id="frame-clipforge" src="https://pachipachi4234.github.io/Clipforge/" class="absolute inset-0 w-full h-full border-none block"></iframe>
+        
+        <!-- 2. VoiceChanger (すでにGitHub公開済みのURLを直接読み込み) -->
+        <iframe id="frame-voicechanger" src="https://pachipachi4234.github.io/moddel-one/" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        
+        <!-- 3. AutoTelop (同じフォルダ内にある AutoTelop.html を読み込み) -->
+        <iframe id="frame-autotelop" src="./AutoTelop.html" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
     </main>
 
     <script>
-        // バックグラウンドで動く各アプリのコードを格納
-        const apps = {
-            clipforge: "%%B64_CLIPFORGE%%",
-            voicechanger: "%%B64_VOICECHANGER%%",
-            autotelop: "%%B64_AUTOTELOP%%"
-        };
-
-        const initFrame = (id, b64) => {
-            const el = document.getElementById(id);
-            el.src = 'data:text/html;charset=utf-8;base64,' + b64;
-        };
-
         // GitHub風タブ切り替えロジック
         const tabs = document.querySelectorAll('#tabs button');
         const frames = document.querySelectorAll('main iframe');
 
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
+                // タブのデザイン切り替え
                 tabs.forEach(t => { t.classList.remove('tab-active'); t.classList.add('tab-inactive'); });
                 tab.classList.add('tab-active'); tab.classList.remove('tab-inactive');
                 
+                // 表示するiframeの切り替え
                 frames.forEach(f => f.classList.replace('block', 'hidden'));
                 document.getElementById('frame-' + tab.dataset.target).classList.replace('hidden', 'block');
             });
