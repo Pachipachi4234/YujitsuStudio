@@ -10,13 +10,10 @@
         .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.25rem; padding: 0.25rem 0.5rem; width: 100%; font-size: 0.875rem;}
         .input-ui:focus { outline: none; border-color: #58a6ff; }
         
-        /* タイムライン新構造 */
         .timeline-track { position: relative; height: 44px; background: rgba(1, 4, 9, 0.5); border-bottom: 1px solid #30363d; border-radius: 4px; overflow: hidden; cursor: pointer; }
-        /* アイテムに移動カーソルを付与 */
         .timeline-item { position: absolute; height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: bold; color: white; cursor: grab; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none;}
         .timeline-item:active { cursor: grabbing; }
         
-        /* 伸縮用のハンドル (アイテムの左右端) */
         .resize-handle-l { position: absolute; left: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 20; }
         .resize-handle-r { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 20; }
         
@@ -47,7 +44,7 @@
     <div class="flex flex-1 gap-2 min-h-0">
         <div class="panel flex-1 flex flex-col p-2 relative">
             <div class="flex justify-between items-center mb-2">
-                <h2 class="text-sm font-bold text-gray-400">プレビュー (ドラッグ移動・アニメ設定対応)</h2>
+                <h2 class="text-sm font-bold text-gray-400">プレビュー</h2>
                 <div class="text-xs font-mono bg-black px-2 py-1 rounded text-[#58a6ff]" id="timeDisplay">00:00.0 / 00:00.0</div>
             </div>
             <div class="flex-1 bg-black rounded overflow-hidden relative flex items-center justify-center border border-[#30363d]">
@@ -72,8 +69,6 @@
 
             <h2 class="text-sm font-bold text-gray-400 mb-2 border-b border-[#30363d] pb-2">⚙️ 選択アイテムの設定</h2>
             <div id="propertiesPanel" class="text-xs space-y-2 opacity-50 pointer-events-none transition-opacity">
-                
-                <!-- 新規：音声分離ボタン (ビデオ選択時のみ表示) -->
                 <button id="detachAudioBtn" class="hidden w-full mb-2 bg-[#d29922]/20 hover:bg-[#d29922]/40 text-[#e3b341] border border-[#d29922]/50 py-1.5 rounded font-bold transition">🎵 動画から音声を分離</button>
 
                 <div id="propTextArea" class="hidden">
@@ -116,7 +111,6 @@
         </div>
     </div>
 
-    <!-- タイムラインエリア -->
     <div class="panel h-64 flex flex-col flex-none p-2 relative">
         <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
             <div class="flex items-center gap-4">
@@ -144,7 +138,6 @@
                         <div class="h-[44px] flex items-center text-[10px] text-gray-400 pl-2">🎵 音声</div>
                     </div>
                     
-                    <!-- IDを変更せずそのまま -->
                     <div class="flex-1 flex flex-col gap-1 relative pt-1" id="tlTracks">
                         <div class="timeline-track" id="track-video"></div>
                         <div class="timeline-track" id="track-pip"></div>
@@ -200,21 +193,18 @@
         project.items.push(item); selectItem(item.id); updateTimeline();
     }
 
-    // --- 🎵 動画から音声を分離 (Extract Audio) ---
     document.getElementById('detachAudioBtn').addEventListener('click', () => {
         if(!selectedItemId) return;
         const videoItem = project.items.find(i => i.id === selectedItemId);
         if(videoItem.type !== 'video' || !videoItem.el) return;
 
-        // 映像側の音をミュート
         videoItem.muted = true;
         videoItem.el.muted = true;
 
-        // まったく同じ素材から音声だけのアイテムを作成
         const audioItem = JSON.parse(JSON.stringify(videoItem));
         audioItem.id = generateId();
         audioItem.type = 'audio';
-        audioItem.muted = false; // 音声はミュートしない
+        audioItem.muted = false;
 
         const audioEl = document.createElement('audio');
         audioEl.src = videoItem.src;
@@ -229,7 +219,6 @@
         ui.statusMsg.classList.remove('hidden'); setTimeout(() => ui.statusMsg.classList.add('hidden'), 1500);
     });
 
-    // --- ✂️ Sキーでの分割 ---
     function splitSelectedItem() {
         if(!selectedItemId) return;
         const item = project.items.find(i => i.id === selectedItemId);
@@ -246,7 +235,7 @@
         if(item.el) {
             const el = document.createElement(item.el.tagName);
             el.src = item.src; el.crossOrigin = "anonymous";
-            el.muted = item.muted; // 分離後のミュート状態を引き継ぐ
+            el.muted = item.muted;
             newItem.el = el;
         }
         
@@ -256,7 +245,6 @@
     document.getElementById('splitBtn').addEventListener('click', splitSelectedItem);
     window.addEventListener('keydown', (e) => { if ((e.key === 's' || e.key === 'S') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') splitSelectedItem(); });
 
-    // --- プレビュー描画 ---
     function getInterpolatedProps(item, localTime) {
         if (!item.keyframes || item.keyframes.length === 0) return { x: 960, y: 540, scale: 1, opacity: 1 };
         if (item.keyframes.length === 1) return JSON.parse(JSON.stringify(item.keyframes[0]));
@@ -269,6 +257,7 @@
         return { x: prev.x + (next.x - prev.x) * ratio, y: prev.y + (next.y - prev.y) * ratio, scale: prev.scale + (next.scale - prev.scale) * ratio, opacity: prev.opacity + (next.opacity - prev.opacity) * ratio };
     }
 
+    // ★★★ 描画関数 (点滅防止の完全修正版) ★★★
     function render() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const drawOrder = ['video', 'pip', 'text'];
@@ -288,9 +277,12 @@
 
                 if (type === 'video' || type === 'pip') {
                     if (item.el && (item.el.readyState >= 2 || item.el.complete)) {
-                        if(item.el.tagName === 'VIDEO' && Math.abs(item.el.currentTime - localTime) > 0.1) {
-                            item.el.currentTime = localTime;
-                            item.el.muted = item.muted; // 分離済みの場合はミュート維持
+                        if (item.el.tagName === 'VIDEO') {
+                            item.el.muted = item.muted;
+                            // 💡 再生中ではなく、手動シーク時（ずれが大きい時）だけ時刻を同期して点滅を防ぐ
+                            if (!isPlaying && Math.abs(item.el.currentTime - localTime) > 0.15) {
+                                item.el.currentTime = localTime;
+                            }
                         }
                         if(type === 'video') { ctx.drawImage(item.el, 0, 0, canvas.width, canvas.height); } 
                         else {
@@ -308,11 +300,12 @@
             });
         });
 
-        // 音声アイテムの再生位置同期
         const activeAudio = project.items.filter(item => item.type === 'audio' && currentTime >= item.start && currentTime <= (item.start + item.duration));
         activeAudio.forEach(item => {
             const localTime = currentTime - item.start;
-            if(item.el && Math.abs(item.el.currentTime - localTime) > 0.1) item.el.currentTime = localTime;
+            if(item.el && !isPlaying && Math.abs(item.el.currentTime - localTime) > 0.15) {
+                item.el.currentTime = localTime;
+            }
         });
 
         if (!isExporting) {
@@ -350,22 +343,23 @@
         lastTimeUpdate = performance.now();
         project.items.forEach(item => {
             if (item.el && item.el.tagName !== 'IMG') {
-                if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) { item.el.play().catch(()=>{}); } else { item.el.pause(); }
+                if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
+                    item.el.currentTime = currentTime - item.start; // 再生開始時だけ同期
+                    item.el.play().catch(()=>{});
+                } else { item.el.pause(); }
             }
         });
     }
 
     ui.playBtn.addEventListener('click', () => togglePlay());
     
-    // --- 🖱️ タイムライン上のマウス操作（ドラッグ移動 ＆ リサイズ） ---
     let tlDraggingItem = null;
-    let tlDragAction = null; // 'move', 'resize-l', 'resize-r'
+    let tlDragAction = null;
     let tlDragStartX = 0;
     let tlOriginalStart = 0;
     let tlOriginalDuration = 0;
 
     ui.tlTracks.addEventListener('mousedown', (e) => {
-        // アイテム本体かハンドルがクリックされたか判定
         const itemEl = e.target.closest('.timeline-item');
         if (itemEl) {
             const itemId = itemEl.getAttribute('data-id');
@@ -382,19 +376,22 @@
             else if (e.target.classList.contains('resize-handle-r')) tlDragAction = 'resize-r';
             else tlDragAction = 'move';
             
-            e.stopPropagation(); // シークバー移動を防止
+            e.stopPropagation();
             return;
         }
 
-        // アイテム以外の場所（隙間）をクリックした場合はシーク
         const rect = ui.tlTracks.getBoundingClientRect();
         currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * project.duration;
+        project.items.forEach(item => {
+            if (item.el && item.el.tagName !== 'IMG' && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
+                item.el.currentTime = currentTime - item.start;
+            }
+        });
     });
 
     window.addEventListener('mousemove', (e) => {
         if (!tlDraggingItem) return;
         const rect = ui.tlTracks.getBoundingClientRect();
-        // マウスの移動ピクセル数を時間(秒)に変換
         const pxToTime = project.duration / rect.width;
         const timeDiff = (e.clientX - tlDragStartX) * pxToTime;
 
@@ -417,7 +414,6 @@
             tlDraggingItem.duration = newDuration;
         }
 
-        // リアルタイムでUI更新
         updateTimeline();
         document.getElementById('propStart').value = tlDraggingItem.start.toFixed(2);
         document.getElementById('propDuration').value = tlDraggingItem.duration.toFixed(2);
@@ -438,13 +434,11 @@
                 el.className = `timeline-item track-${trackType} ${item.id === selectedItemId ? 'item-selected' : ''}`;
                 el.style.left = `${(item.start / project.duration) * 100}%`;
                 el.style.width = `${(item.duration / project.duration) * 100}%`;
-                el.setAttribute('data-id', item.id); // ドラッグ判別用
+                el.setAttribute('data-id', item.id);
 
-                // 左と右の伸縮用ハンドルを追加
                 const handleL = document.createElement('div'); handleL.className = 'resize-handle-l'; el.appendChild(handleL);
                 const handleR = document.createElement('div'); handleR.className = 'resize-handle-r'; el.appendChild(handleR);
                 
-                // テキストラベル
                 const textSpan = document.createElement('span'); textSpan.style.pointerEvents = 'none';
                 textSpan.innerText = item.type === 'text' ? item.text : (item.type === 'video' && item.muted ? '🔇 映像のみ' : `${item.type.toUpperCase()}`);
                 el.appendChild(textSpan);
@@ -465,7 +459,6 @@
         if (item) {
             ui.propsPanel.classList.remove('opacity-50', 'pointer-events-none');
             
-            // 音声分離ボタンの表示切替
             const detachBtn = document.getElementById('detachAudioBtn');
             if (item.type === 'video' && !item.muted) detachBtn.classList.remove('hidden');
             else detachBtn.classList.add('hidden');
@@ -488,7 +481,6 @@
         });
     });
 
-    // キーフレーム登録・削除などは省略(前回同様)
     document.getElementById('addKfBtn').addEventListener('click', () => {
         if(!selectedItemId) return; const item = project.items.find(i => i.id === selectedItemId); const localTime = currentTime - item.start;
         if(localTime < 0 || localTime > item.duration) return alert("範囲外です");
