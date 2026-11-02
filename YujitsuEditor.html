@@ -10,30 +10,23 @@
         .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.25rem; padding: 0.25rem 0.5rem; width: 100%; font-size: 0.875rem;}
         .input-ui:focus { outline: none; border-color: #58a6ff; }
         
-        /* タイムラインのスタイル */
-        .timeline-track { position: relative; height: 44px; background: #010409; border-bottom: 1px solid #30363d; margin-bottom: 4px; border-radius: 4px; overflow: hidden;}
+        /* タイムライン新構造 */
+        .timeline-track { position: relative; height: 44px; background: rgba(1, 4, 9, 0.5); border-bottom: 1px solid #30363d; border-radius: 4px; overflow: hidden; cursor: pointer; }
         .timeline-item { position: absolute; height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: bold; color: white; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
-        .track-video { background: #238636; }
-        .track-pip { background: #8957e5; }
-        .track-text { background: #79c0ff; color: #000; }
-        .track-audio { background: #d29922; }
+        .track-video { background: #238636; } .track-pip { background: #8957e5; } .track-text { background: #79c0ff; color: #000; } .track-audio { background: #d29922; }
         .item-selected { box-shadow: 0 0 0 2px #58a6ff, inset 0 0 0 1px rgba(0,0,0,0.8) !important; z-index: 10; }
         
         .kf-marker { position: absolute; top: 0; bottom: 0; width: 8px; background: rgba(255,255,255,0.8); border-left: 1px solid #000; border-right: 1px solid #000; transform: skewX(-20deg); pointer-events: none;}
-        
         #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff0000; z-index: 50; pointer-events: none; }
         #playhead::before { content: ''; position: absolute; top: -10px; left: -5px; width: 12px; height: 12px; background: #ff0000; border-radius: 50%; }
 
         /* スクロールバー */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #010409; }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #010409; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden p-2 gap-2">
 
-    <!-- ツールバー -->
     <header class="panel flex items-center justify-between px-4 py-2 flex-none border-b-2 border-b-[#58a6ff]">
         <div class="flex items-center gap-4">
             <div class="bg-[#58a6ff] text-black font-extrabold px-3 py-1 rounded-lg text-lg">Y</div>
@@ -49,19 +42,15 @@
         </div>
     </header>
 
-    <!-- メインワークスペース -->
     <div class="flex flex-1 gap-2 min-h-0">
-        <!-- プレビューエリア -->
         <div class="panel flex-1 flex flex-col p-2 relative">
             <div class="flex justify-between items-center mb-2">
                 <h2 class="text-sm font-bold text-gray-400">プレビュー (ドラッグ移動・アニメ設定対応)</h2>
                 <div class="text-xs font-mono bg-black px-2 py-1 rounded text-[#58a6ff]" id="timeDisplay">00:00.0 / 00:00.0</div>
             </div>
-            
             <div class="flex-1 bg-black rounded overflow-hidden relative flex items-center justify-center border border-[#30363d]">
                 <canvas id="previewCanvas" class="max-w-full max-h-full cursor-move"></canvas>
             </div>
-
             <div class="flex items-center gap-2 mt-2">
                 <button id="playBtn" class="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-1 rounded font-bold w-24">再生</button>
                 <input type="range" id="seekSlider" class="flex-1 cursor-pointer" value="0" step="0.01" min="0">
@@ -69,42 +58,26 @@
             </div>
         </div>
 
-        <!-- プロパティ＆素材追加エリア -->
         <div class="panel w-80 flex flex-col p-4 overflow-y-auto">
-            
-            <!-- YuJitsu Studio 専用 連携パネル -->
-            <h2 class="text-sm font-bold text-[#f78166] mb-2 border-b border-[#30363d] pb-2 flex items-center gap-1">
-                <span>🔄</span> Studio 連携読み込み
-            </h2>
-            <p class="text-[10px] text-gray-400 mb-2">※他ツールで書き出したファイルを専用ラインで配置します。</p>
-            <div class="space-y-2 mb-6">
-                <button class="studio-import-btn w-full bg-[#238636]/10 hover:bg-[#238636]/30 text-[#3fb950] border border-[#238636]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()">
-                    <span>📺 AutoStudio テロップ動画</span> <span>＋</span>
-                </button>
-                <button class="studio-import-btn w-full bg-[#8957e5]/10 hover:bg-[#8957e5]/30 text-[#a371f7] border border-[#8957e5]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()">
-                    <span>✂️ ClipCutter カット済映像</span> <span>＋</span>
-                </button>
-                <button class="studio-import-btn w-full bg-[#d29922]/10 hover:bg-[#d29922]/30 text-[#e3b341] border border-[#d29922]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()">
-                    <span>🎤 Model-one 生成音声</span> <span>＋</span>
-                </button>
+            <h2 class="text-sm font-bold text-[#f78166] mb-2 border-b border-[#30363d] pb-2 flex items-center gap-1"><span>🔄</span> Studio 連携読み込み</h2>
+            <div class="space-y-2 mb-4">
+                <button class="w-full bg-[#238636]/10 hover:bg-[#238636]/30 text-[#3fb950] border border-[#238636]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()"><span>📺 AutoStudio テロップ動画</span> <span>＋</span></button>
+                <button class="w-full bg-[#8957e5]/10 hover:bg-[#8957e5]/30 text-[#a371f7] border border-[#8957e5]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()"><span>✂️ ClipCutter カット済映像</span> <span>＋</span></button>
+                <button class="w-full bg-[#d29922]/10 hover:bg-[#d29922]/30 text-[#e3b341] border border-[#d29922]/50 py-1.5 rounded text-xs font-bold transition flex justify-between px-3" onclick="document.getElementById('mediaUpload').click()"><span>🎤 Model-one 生成音声</span> <span>＋</span></button>
             </div>
 
             <h2 class="text-sm font-bold text-gray-400 mb-2 border-b border-[#30363d] pb-2">➕ 汎用素材追加</h2>
-            <div class="space-y-3 mb-6">
-                <!-- 非表示の汎用インプット (連携ボタンからも叩かれる) -->
+            <div class="space-y-2 mb-4">
                 <input type="file" id="mediaUpload" accept="video/*,audio/*" class="hidden">
                 <input type="file" id="pipUpload" accept="image/*,video/*" class="hidden">
-                
-                <button onclick="document.getElementById('mediaUpload').click()" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs text-gray-300">📁 ローカル映像 / 音声を追加</button>
-                <button onclick="document.getElementById('pipUpload').click()" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs text-gray-300">🖼 PiP (画像/小窓) を追加</button>
-                <button id="addTextBtn" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs font-bold text-[#79c0ff]">📝 独自テキストを追加</button>
+                <button onclick="document.getElementById('mediaUpload').click()" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs text-gray-300">📁 ローカル映像 / 音声</button>
+                <button onclick="document.getElementById('pipUpload').click()" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs text-gray-300">🖼 PiP (画像/小窓動画)</button>
+                <button id="addTextBtn" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs font-bold text-[#79c0ff]">📝 独自テキスト</button>
             </div>
 
             <h2 class="text-sm font-bold text-gray-400 mb-2 border-b border-[#30363d] pb-2">⚙️ 選択アイテムの設定</h2>
-            <div id="propertiesPanel" class="text-xs space-y-3 opacity-50 pointer-events-none transition-opacity">
-                
+            <div id="propertiesPanel" class="text-xs space-y-2 opacity-50 pointer-events-none transition-opacity">
                 <div id="propTextArea" class="hidden">
-                    <label class="block mb-1">テキスト内容</label>
                     <textarea id="propText" class="input-ui h-12"></textarea>
                     <div class="flex gap-2 mt-1">
                         <input type="color" id="propColor" class="input-ui h-6 p-0 w-1/2">
@@ -115,89 +88,105 @@
                 <div class="grid grid-cols-2 gap-2 bg-[#010409] p-2 rounded border border-[#30363d]">
                     <div><label class="block mb-1 text-gray-500">開始(秒)</label><input type="number" id="propStart" class="input-ui" step="0.1"></div>
                     <div><label class="block mb-1 text-gray-500">長さ(秒)</label><input type="number" id="propDuration" class="input-ui" step="0.1"></div>
+                    
+                    <!-- 新規：アニメーション選択 -->
+                    <div class="col-span-2 mt-1">
+                        <label class="block mb-1 text-[#79c0ff]">✨ 登場アニメーション</label>
+                        <select id="propAnim" class="input-ui !py-1 text-xs">
+                            <option value="none">なし</option>
+                            <option value="fade">フェードイン</option>
+                            <option value="slide-up">下からスライド</option>
+                            <option value="zoom-in">ズームイン</option>
+                        </select>
+                    </div>
                 </div>
 
-                <!-- キーフレーム対応プロパティ -->
                 <div class="bg-[#010409] p-2 rounded border border-[#30363d] space-y-2">
                     <div class="flex justify-between items-center text-gray-500 mb-1">
-                        <span>アニメーション設定</span>
-                        <button id="addKfBtn" class="bg-[#58a6ff] text-black px-2 py-0.5 rounded font-bold text-[10px] hover:bg-[#79c0ff]">🔷 現在位置にキーフレーム打鍵</button>
+                        <span>キーフレーム座標</span>
+                        <button id="addKfBtn" class="bg-[#58a6ff] text-black px-2 py-0.5 rounded font-bold text-[10px] hover:bg-[#79c0ff]">🔷 現在位置に打鍵</button>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div><label class="block mb-1">X座標</label><input type="number" id="propX" class="input-ui"></div>
                         <div><label class="block mb-1">Y座標</label><input type="number" id="propY" class="input-ui"></div>
-                        <div><label class="block mb-1">スケール(倍)</label><input type="number" id="propScale" class="input-ui" step="0.1" value="1.0"></div>
-                        <div><label class="block mb-1">透明度(0〜1)</label><input type="number" id="propOpacity" class="input-ui" step="0.1" value="1.0"></div>
+                        <div><label class="block mb-1">スケール</label><input type="number" id="propScale" class="input-ui" step="0.1" value="1.0"></div>
+                        <div><label class="block mb-1">透明度</label><input type="number" id="propOpacity" class="input-ui" step="0.1" value="1.0"></div>
                     </div>
                 </div>
 
-                <!-- AIトラッキング機能 -->
-                <div id="trackingArea" class="bg-[#21262d] p-2 rounded border border-[#30363d] hidden">
-                    <label class="block mb-1 font-bold text-[#f78166]">🤖 AI自動トラッキング (PiP/文字)</label>
-                    <p class="text-[10px] text-gray-400 mb-2">背景映像の人や物をAIが認識し自動追従します。</p>
-                    <button id="trackBtn" class="w-full bg-[#f78166] hover:bg-[#ea4a5a] text-white py-1.5 rounded font-bold">▶ 映像を解析して追従開始</button>
-                </div>
-
-                <button id="deleteItemBtn" class="w-full mt-4 bg-red-900/50 hover:bg-red-800 text-red-300 py-2 rounded border border-red-800/50 font-bold">🗑 選択アイテムを削除</button>
+                <button id="deleteItemBtn" class="w-full mt-2 bg-red-900/50 hover:bg-red-800 text-red-300 py-1.5 rounded border border-red-800/50 font-bold">🗑 選択アイテムを削除</button>
             </div>
         </div>
     </div>
 
     <!-- タイムラインエリア -->
     <div class="panel h-64 flex flex-col flex-none p-2 relative">
-        <div class="flex text-xs text-gray-400 mb-1 gap-2">
-            <div class="w-20 flex-none">トラック</div>
-            <div class="flex-1 relative border-b border-[#30363d] h-4 cursor-pointer" id="timelineRuler"></div>
+        <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
+            <div class="flex items-center gap-4">
+                <span class="font-bold text-white">タイムライン</span>
+                <!-- 新規：分割ボタン -->
+                <button id="splitBtn" class="bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] px-3 py-1 rounded text-white flex items-center gap-1"><span class="text-[10px]">✂️</span> 分割 (Sキー)</button>
+            </div>
+            <!-- 新規：ズーム機能 -->
+            <div class="flex items-center gap-2">
+                <span>🔍 ズーム</span>
+                <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" class="w-24 cursor-pointer">
+            </div>
         </div>
         
-        <div class="flex-1 overflow-y-auto overflow-x-hidden relative flex flex-col gap-1" id="timelineContainer">
-            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🎥 映像</div><div class="flex-1 timeline-track" id="track-video"></div></div>
-            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🖼 PiP</div><div class="flex-1 timeline-track" id="track-pip"></div></div>
-            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">📝 テキスト</div><div class="flex-1 timeline-track" id="track-text"></div></div>
-            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🎵 音声</div><div class="flex-1 timeline-track" id="track-audio"></div></div>
-            <div id="playhead" style="left: 0%;"></div>
+        <div class="flex-1 overflow-auto bg-[#010409] border border-[#30363d] rounded relative" id="tlWrapper">
+            <div id="tlContent" class="relative flex flex-col" style="width: 100%; min-width: 100%;">
+                
+                <div class="flex relative h-6 border-b border-[#30363d] cursor-pointer" id="tlRuler">
+                    <div class="w-20 flex-none sticky left-0 z-30 bg-[#010409] border-r border-[#30363d]"></div>
+                    <div class="flex-1 relative" id="rulerTicks"></div>
+                </div>
+                
+                <div class="relative flex" style="min-height: 180px;">
+                    <!-- 左側の固定ラベル -->
+                    <div class="sticky left-0 w-20 flex-none bg-[#010409] z-20 flex flex-col gap-1 border-r border-[#30363d] pt-1">
+                        <div class="h-[44px] flex items-center text-[10px] text-gray-400 pl-2">🎥 映像</div>
+                        <div class="h-[44px] flex items-center text-[10px] text-gray-400 pl-2">🖼 PiP</div>
+                        <div class="h-[44px] flex items-center text-[10px] text-gray-400 pl-2">📝 文字</div>
+                        <div class="h-[44px] flex items-center text-[10px] text-gray-400 pl-2">🎵 音声</div>
+                    </div>
+                    
+                    <!-- 右側のスクロールするトラック -->
+                    <div class="flex-1 flex flex-col gap-1 relative pt-1" id="tlTracks">
+                        <div class="timeline-track" id="track-video"></div>
+                        <div class="timeline-track" id="track-pip"></div>
+                        <div class="timeline-track" id="track-text"></div>
+                        <div class="timeline-track" id="track-audio"></div>
+                        <div id="playhead"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
 <script type="module">
-    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
-    env.allowLocalModels = false;
-
-    // --- State & Core Objects ---
     const project = { duration: 30, items: [] };
     let currentTime = 0; let isPlaying = false; let selectedItemId = null;
     let lastTimeUpdate = 0; let isExporting = false; let audioCtxExport = null;
 
-    const canvas = document.getElementById('previewCanvas');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById('previewCanvas'); const ctx = canvas.getContext('2d');
     canvas.width = 1920; canvas.height = 1080;
     
     const ui = {
         playBtn: document.getElementById('playBtn'), seekSlider: document.getElementById('seekSlider'),
         timeDisplay: document.getElementById('timeDisplay'), playhead: document.getElementById('playhead'),
         propsPanel: document.getElementById('propertiesPanel'), statusMsg: document.getElementById('statusMsg'),
-        ruler: document.getElementById('timelineRuler')
+        tlContent: document.getElementById('tlContent'), tlTracks: document.getElementById('tlTracks'),
+        zoomSlider: document.getElementById('zoomSlider')
     };
 
-    // --- YuJitsu Studio 連携API (PostMessage受信) ---
-    // ※ 他のツールが `window.parent.postMessage` でデータを送ってきたら、タイムラインに自動追加する仕組み
-    window.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'YUJI_STUDIO_IMPORT') {
-            const { mediaType, src, duration } = event.data;
-            addItem(mediaType, src, null, duration);
-            ui.statusMsg.innerText = "連携データを受信しました！";
-            ui.statusMsg.classList.remove('hidden');
-            setTimeout(() => ui.statusMsg.classList.add('hidden'), 3000);
-        }
-    });
-
-    // --- Data Models ---
     function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
     function addItem(type, src, fileObj, forceDuration = 5) {
         const item = {
             id: generateId(), type: type, src: src, start: currentTime, duration: forceDuration, 
             text: type === 'text' ? '新規テキスト' : '', color: '#ffffff', size: 100, el: null,
+            anim: 'none', // 新規：アニメーション設定
             keyframes: [{ time: 0, x: 960, y: 540, scale: 1.0, opacity: 1.0 }] 
         };
 
@@ -205,7 +194,6 @@
             const isImage = fileObj && fileObj.type.startsWith('image');
             const el = document.createElement(isImage ? 'img' : (type === 'audio' ? 'audio' : 'video'));
             el.src = src; el.crossOrigin = "anonymous";
-            
             if (isImage) { el.onload = () => updateTimeline(); } 
             else {
                 el.onloadedmetadata = () => {
@@ -216,17 +204,15 @@
             }
             item.el = el;
         }
-
         project.items.push(item); selectItem(item.id); updateTimeline();
     }
 
-    // --- Keyframe Interpolation Logic ---
     function getInterpolatedProps(item, localTime) {
         if (!item.keyframes || item.keyframes.length === 0) return { x: 960, y: 540, scale: 1, opacity: 1 };
-        if (item.keyframes.length === 1) return item.keyframes[0];
+        if (item.keyframes.length === 1) return JSON.parse(JSON.stringify(item.keyframes[0]));
         const kfs = [...item.keyframes].sort((a, b) => a.time - b.time);
-        if (localTime <= kfs[0].time) return kfs[0];
-        if (localTime >= kfs[kfs.length - 1].time) return kfs[kfs.length - 1];
+        if (localTime <= kfs[0].time) return JSON.parse(JSON.stringify(kfs[0]));
+        if (localTime >= kfs[kfs.length - 1].time) return JSON.parse(JSON.stringify(kfs[kfs.length - 1]));
 
         let prev = kfs[0], next = kfs[1];
         for (let i = 0; i < kfs.length - 1; i++) {
@@ -239,7 +225,47 @@
         };
     }
 
-    // --- Canvas Rendering Loop ---
+    // --- ✂️ Sキーでの分割 (Split) 処理 ---
+    function splitSelectedItem() {
+        if(!selectedItemId) return;
+        const item = project.items.find(i => i.id === selectedItemId);
+        const localTime = currentTime - item.start;
+        
+        // アイテムの範囲外、または両端すぎる場合は無視
+        if(localTime <= 0.1 || localTime >= item.duration - 0.1) return;
+        
+        const origDuration = item.duration;
+        item.duration = localTime; // 前半の長さを短くする
+        
+        // 後半のアイテムを生成
+        const newItem = JSON.parse(JSON.stringify(item));
+        newItem.id = generateId();
+        newItem.start = currentTime;
+        newItem.duration = origDuration - localTime;
+        newItem.keyframes = [{ time: 0, x: newItem.keyframes[0]?.x || 960, y: newItem.keyframes[0]?.y || 540, scale: 1.0, opacity: 1.0 }];
+
+        if(item.el) {
+            const el = document.createElement(item.el.tagName);
+            el.src = item.src; el.crossOrigin = "anonymous";
+            newItem.el = el;
+        }
+        
+        project.items.push(newItem);
+        selectItem(newItem.id); // 切った後ろ側を選択状態に
+        updateTimeline();
+        
+        // カット成功エフェクト
+        ui.statusMsg.innerText = "✂️ カットしました";
+        ui.statusMsg.classList.remove('hidden'); setTimeout(() => ui.statusMsg.classList.add('hidden'), 1500);
+    }
+
+    document.getElementById('splitBtn').addEventListener('click', splitSelectedItem);
+    window.addEventListener('keydown', (e) => {
+        if ((e.key === 's' || e.key === 'S') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            splitSelectedItem();
+        }
+    });
+
     function render() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const drawOrder = ['video', 'pip', 'text'];
@@ -249,6 +275,17 @@
             activeItems.forEach(item => {
                 const localTime = currentTime - item.start;
                 const props = getInterpolatedProps(item, localTime);
+                
+                // ✨ アニメーション（PiP/テキスト共通）
+                if (item.anim === 'fade' && localTime < 0.5) {
+                    props.opacity *= (localTime / 0.5);
+                } else if (item.anim === 'slide-up' && localTime < 0.5) {
+                    props.opacity *= (localTime / 0.5);
+                    props.y += (0.5 - localTime) * 200;
+                } else if (item.anim === 'zoom-in' && localTime < 0.5) {
+                    props.opacity *= (localTime / 0.5);
+                    props.scale *= (0.5 + localTime);
+                }
                 
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, Math.min(1, props.opacity));
@@ -261,8 +298,7 @@
                         else {
                             const w = (item.el.videoWidth || item.el.naturalWidth || 400) * props.scale;
                             const h = (item.el.videoHeight || item.el.naturalHeight || 225) * props.scale;
-                            const drawW = w * 0.3; const drawH = h * 0.3; 
-                            ctx.translate(props.x, props.y); ctx.drawImage(item.el, -drawW/2, -drawH/2, drawW, drawH);
+                            ctx.translate(props.x, props.y); ctx.drawImage(item.el, -(w*0.3)/2, -(h*0.3)/2, w*0.3, h*0.3);
                         }
                     }
                 } else if (type === 'text') {
@@ -301,7 +337,6 @@
     }
     render();
 
-    // --- Controls & Inputs ---
     function togglePlay(force) {
         isPlaying = force !== undefined ? force : !isPlaying;
         ui.playBtn.innerText = isPlaying ? '⏸ 停止' : '▶ 再生';
@@ -309,8 +344,7 @@
         lastTimeUpdate = performance.now();
         project.items.forEach(item => {
             if (item.el && item.el.tagName !== 'IMG') {
-                if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) { item.el.play().catch(()=>{}); } 
-                else { item.el.pause(); }
+                if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) { item.el.play().catch(()=>{}); } else { item.el.pause(); }
             }
         });
     }
@@ -323,14 +357,25 @@
         });
     });
     
-    ui.ruler.addEventListener('mousedown', (e) => {
-        const rect = ui.ruler.getBoundingClientRect();
-        currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * project.duration;
+    // --- 🎯 どこをクリックしてもシーク可能に ---
+    const tlContainer = document.getElementById('tlContent');
+    const updatePlayheadFromClick = (e) => {
+        if(e.target.closest('.timeline-item')) return; // アイテムクリック時は移動しない
+        const rect = ui.tlTracks.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        currentTime = Math.max(0, Math.min(1, clickX / rect.width)) * project.duration;
         ui.seekSlider.value = (currentTime / project.duration) * 100;
         ui.seekSlider.dispatchEvent(new Event('input'));
+    };
+    ui.tlTracks.addEventListener('mousedown', updatePlayheadFromClick);
+    document.getElementById('tlRuler').addEventListener('mousedown', updatePlayheadFromClick);
+
+    // --- 🔍 ズーム機能 ---
+    ui.zoomSlider.addEventListener('input', (e) => {
+        const zoom = e.target.value;
+        ui.tlContent.style.width = `${zoom * 100}%`;
     });
 
-    document.getElementById('addTimeBtn').addEventListener('click', () => { project.duration += 5; updateTimeline(); });
     document.getElementById('addTextBtn').addEventListener('click', () => addItem('text', null, null));
     document.getElementById('mediaUpload').addEventListener('change', (e) => {
         const file = e.target.files[0]; if(!file) return;
@@ -341,7 +386,6 @@
         addItem('pip', URL.createObjectURL(file), file); e.target.value = '';
     });
 
-    // --- Timeline UI & Properties ---
     function updateTimeline() {
         ['video', 'pip', 'text', 'audio'].forEach(trackType => {
             const container = document.getElementById(`track-${trackType}`); container.innerHTML = '';
@@ -369,19 +413,19 @@
         if (item) {
             ui.propsPanel.classList.remove('opacity-50', 'pointer-events-none');
             document.getElementById('propStart').value = item.start.toFixed(2); document.getElementById('propDuration').value = item.duration.toFixed(2);
+            document.getElementById('propAnim').value = item.anim || 'none'; // アニメ設定読込
             if(item.type === 'text') {
                 document.getElementById('propTextArea').classList.remove('hidden'); document.getElementById('propText').value = item.text;
                 document.getElementById('propColor').value = item.color; document.getElementById('propSize').value = item.size;
             } else { document.getElementById('propTextArea').classList.add('hidden'); }
-            document.getElementById('trackingArea').classList.toggle('hidden', !(item.type === 'pip' || item.type === 'text'));
         } else { ui.propsPanel.classList.add('opacity-50', 'pointer-events-none'); }
     }
 
-    ['propStart', 'propDuration', 'propText', 'propColor', 'propSize'].forEach(id => {
+    ['propStart', 'propDuration', 'propText', 'propColor', 'propSize', 'propAnim'].forEach(id => {
         document.getElementById(id).addEventListener('input', (e) => {
             if(!selectedItemId) return;
             const item = project.items.find(i => i.id === selectedItemId); const key = id.replace('prop', '').toLowerCase();
-            if(key === 'text' || key === 'color') item[key] = e.target.value; else item[key] = parseFloat(e.target.value);
+            if(key === 'text' || key === 'color' || key === 'anim') item[key] = e.target.value; else item[key] = parseFloat(e.target.value);
             updateTimeline();
         });
     });
@@ -389,21 +433,18 @@
     document.getElementById('addKfBtn').addEventListener('click', () => {
         if(!selectedItemId) return;
         const item = project.items.find(i => i.id === selectedItemId); const localTime = currentTime - item.start;
-        if(localTime < 0 || localTime > item.duration) return alert("アイテムの表示範囲外です");
+        if(localTime < 0 || localTime > item.duration) return alert("範囲外です");
         const x = parseFloat(document.getElementById('propX').value); const y = parseFloat(document.getElementById('propY').value);
         const scale = parseFloat(document.getElementById('propScale').value); const opacity = parseFloat(document.getElementById('propOpacity').value);
         
         const existingIdx = item.keyframes.findIndex(k => Math.abs(k.time - localTime) < 0.1);
         if(existingIdx >= 0) { item.keyframes[existingIdx] = { time: localTime, x, y, scale, opacity }; } 
         else { item.keyframes.push({ time: localTime, x, y, scale, opacity }); }
-        
-        updateTimeline();
-        document.getElementById('addKfBtn').innerText = "✅ 記録完了！"; setTimeout(() => document.getElementById('addKfBtn').innerText = "🔷 現在位置にキーフレーム打鍵", 1000);
+        updateTimeline(); document.getElementById('addKfBtn').innerText = "✅ 記録完了！"; setTimeout(() => document.getElementById('addKfBtn').innerText = "🔷 現在位置に打鍵", 1000);
     });
 
     document.getElementById('deleteItemBtn').addEventListener('click', () => { project.items = project.items.filter(i => i.id !== selectedItemId); selectItem(null); updateTimeline(); });
 
-    // --- Drag Manipulation ---
     let isDragging = false; let dragTarget = null; let dragOffsetX = 0; let dragOffsetY = 0;
     canvas.addEventListener('mousedown', (e) => {
         const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
@@ -437,34 +478,6 @@
     canvas.addEventListener('mouseup', () => { isDragging = false; dragTarget = null; updateTimeline();});
     canvas.addEventListener('mouseleave', () => { isDragging = false; dragTarget = null; updateTimeline();});
 
-    // --- AI Tracking ---
-    document.getElementById('trackBtn').addEventListener('click', async () => {
-        if(!selectedItemId) return;
-        const targetItem = project.items.find(i => i.id === selectedItemId); const mainVideo = project.items.find(i => i.type === 'video');
-        if(!mainVideo || !mainVideo.el) return alert("背景となるメイン映像(Video)が見つかりません！");
-        if(mainVideo.duration < 1) return;
-
-        ui.statusMsg.innerText = "🤖 AIモデル読み込み中..."; ui.statusMsg.classList.remove('hidden');
-        try {
-            const detector = await pipeline('object-detection', 'Xenova/detr-resnet-50');
-            ui.statusMsg.innerText = "🔍 解析中...";
-            targetItem.keyframes = []; 
-            const tmpCanvas = document.createElement('canvas'); tmpCanvas.width = mainVideo.el.videoWidth || 1280; tmpCanvas.height = mainVideo.el.videoHeight || 720;
-            const tmpCtx = tmpCanvas.getContext('2d'); const origTime = mainVideo.el.currentTime;
-            
-            for(let t = targetItem.start; t <= targetItem.start + targetItem.duration; t += 0.5) {
-                mainVideo.el.currentTime = t; await new Promise(r => setTimeout(r, 100)); 
-                tmpCtx.drawImage(mainVideo.el, 0, 0, tmpCanvas.width, tmpCanvas.height);
-                const results = await detector(tmpCanvas.toDataURL('image/jpeg'), { threshold: 0.8 });
-                if(results.length > 0) {
-                    const box = results[0].box; const centerX = box.xmin + (box.xmax - box.xmin) / 2; const centerY = box.ymin + (box.ymax - box.ymin) / 2;
-                    targetItem.keyframes.push({ time: t - targetItem.start, x: centerX * (canvas.width / tmpCanvas.width), y: centerY * (canvas.height / tmpCanvas.height), scale: 1.0, opacity: 1.0 });
-                }
-            }
-            mainVideo.el.currentTime = origTime; ui.statusMsg.innerText = "✅ トラッキング完了！"; setTimeout(() => ui.statusMsg.classList.add('hidden'), 3000); updateTimeline();
-        } catch(e) { alert("AI解析エラー"); ui.statusMsg.classList.add('hidden'); }
-    });
-
     // --- Export ---
     document.getElementById('exportBtn').addEventListener('click', async () => {
         if(isExporting) return; isExporting = true;
@@ -493,14 +506,6 @@
         const checkEnd = setInterval(() => { if(currentTime >= project.duration) { clearInterval(checkEnd); if(rec.state !== 'inactive') rec.stop(); } }, 500);
     });
 
-    // --- Save/Load ---
-    document.getElementById('saveBtn').addEventListener('click', () => {
-        localStorage.setItem('YJEditorState', JSON.stringify({ duration: project.duration, items: project.items.map(i => ({...i, el: null, src: null})) })); alert('プロジェクトを保存しました。');
-    });
-    document.getElementById('loadBtn').addEventListener('click', () => {
-        const data = localStorage.getItem('YJEditorState');
-        if(data) { project.duration = JSON.parse(data).duration; project.items = JSON.parse(data).items; updateTimeline(); alert('復元しました！(メディアファイルは再度読み込んでください)'); }
-    });
 </script>
 </body>
 </html>
