@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>YuJitsu Studio - Master Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- AIトラッキング用 (Transformers.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0"></script>
     <style>
         body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; user-select: none; }
         .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
@@ -73,7 +75,9 @@
             <div id="propertiesPanel" class="text-xs space-y-2 opacity-50 pointer-events-none transition-opacity">
                 <button id="detachAudioBtn" class="hidden w-full mb-2 bg-[#d29922]/20 hover:bg-[#d29922]/40 text-[#e3b341] border border-[#d29922]/50 py-1.5 rounded font-bold transition">🎵 動画から音声を分離</button>
 
-                <!-- 🎨 クロマキー透過＆カラー選択設定エリア -->
+                <!-- ★ AI自動トラッキング発動ボタン -->
+                <button id="aiTrackBtn" class="hidden w-full mb-2 bg-[#8957e5]/20 hover:bg-[#8957e5]/40 text-[#d2a8ff] border border-[#8957e5]/50 py-1.5 rounded font-bold transition">🎯 AI自動追従（トラッキング）</button>
+
                 <div id="chromaArea" class="bg-[#010409] p-2 rounded border border-[#30363d] space-y-2 hidden">
                     <div class="flex items-center justify-between">
                         <label class="font-bold text-[#3fb950] flex items-center gap-1">🎨 クロマキー透過</label>
@@ -176,12 +180,44 @@
         </div>
     </div>
 
+    <!-- AIトラッキング用ダイアログ -->
+    <div id="aiModal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden z-50">
+        <div class="panel p-6 w-96 space-y-4 border border-[#8957e5]">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">🎯 AI自動トラッキング設定</h3>
+            <p class="text-xs text-gray-400">動画内のオブジェクトをAIが毎フレーム自動追跡し、キーフレームを自動生成します。</p>
+            
+            <div class="space-y-2">
+                <label class="text-xs text-gray-300 block">追跡対象カテゴリ</label>
+                <select id="aiTargetCategory" class="input-ui">
+                    <option value="person">👤 人物・顔</option>
+                    <option value="all">🔍 自動ターゲット（最も大きい物体）</option>
+                </select>
+            </div>
+
+            <div id="aiProgressArea" class="hidden space-y-1 pt-2">
+                <div class="flex justify-between text-xs text-[#d2a8ff]" id="aiStatusText">AIモデルロード中...</div>
+                <div class="w-full bg-[#010409] rounded-full h-2 overflow-hidden border border-[#30363d]">
+                    <div id="aiProgressBar" class="bg-[#8957e5] h-full w-0 transition-all"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button id="closeAiModalBtn" class="bg-[#21262d] text-xs px-4 py-2 rounded hover:bg-[#30363d]">キャンセル</button>
+                <button id="startAiTrackBtn" class="bg-[#8957e5] hover:bg-[#a475f9] text-white font-bold text-xs px-4 py-2 rounded">🚀 AIトラッキング解析開始</button>
+            </div>
+        </div>
+    </div>
+
     <canvas id="offscreenCanvas" class="hidden"></canvas>
 
 <script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
+    env.allowLocalModels = false;
+
     const project = { duration: 30, items: [] };
     let currentTime = 0; let isPlaying = false; let selectedItemId = null;
-    let lastTimeUpdate = 0; let isExporting = false; let audioCtxExport = null;
+    let lastTimeUpdate = 0; let isExporting = false;
+    let detectorPipeline = null;
 
     const canvas = document.getElementById('previewCanvas'); const ctx = canvas.getContext('2d');
     canvas.width = 1920; canvas.height = 1080;
@@ -200,14 +236,9 @@
 
     function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
-    // HEXカラー (#00ff00等) を RGB配列 [0, 255, 0] に変換
     function hexToRgb(hex) {
         const c = hex.replace('#', '');
-        return [
-            parseInt(c.substring(0, 2), 16),
-            parseInt(c.substring(2, 4), 16),
-            parseInt(c.substring(4, 6), 16)
-        ];
+        return [parseInt(c.substring(0, 2), 16), parseInt(c.substring(2, 4), 16), parseInt(c.substring(4, 6), 16)];
     }
 
     function addItem(type, src, fileObj, forceDuration = 5) {
@@ -215,7 +246,7 @@
             id: generateId(), type: type, src: src, start: currentTime, duration: forceDuration, 
             text: type === 'text' ? '新規テキスト' : '', color: '#ffffff', size: 100, el: null,
             anim: 'none', muted: false,
-            chroma: false, chromaColor: '#00ff00', chromaTol: 100, // ★くり抜く色の指定プロパティ
+            chroma: false, chromaColor: '#00ff00', chromaTol: 100,
             keyframes: [{ time: 0, x: 960, y: 540, scale: 1.0, opacity: 1.0 }] 
         };
 
@@ -242,7 +273,6 @@
         if(videoItem.type !== 'video' || !videoItem.el) return;
 
         videoItem.muted = true; videoItem.el.muted = true;
-
         const audioItem = JSON.parse(JSON.stringify(videoItem));
         audioItem.id = generateId(); audioItem.type = 'audio'; audioItem.muted = false;
 
@@ -252,6 +282,81 @@
         project.items.push(audioItem); selectItem(audioItem.id); updateTimeline();
         ui.statusMsg.innerText = "🎵 音声を分離しました";
         ui.statusMsg.classList.remove('hidden'); setTimeout(() => ui.statusMsg.classList.add('hidden'), 1500);
+    });
+
+    // --- 🎯 AI自動トラッキング機能 ---
+    const aiModal = document.getElementById('aiModal');
+    document.getElementById('aiTrackBtn').addEventListener('click', () => aiModal.classList.remove('hidden'));
+    document.getElementById('closeAiModalBtn').addEventListener('click', () => aiModal.classList.add('hidden'));
+
+    document.getElementById('startAiTrackBtn').addEventListener('click', async () => {
+        if (!selectedItemId) return;
+        const targetItem = project.items.find(i => i.id === selectedItemId);
+        const mainVideo = project.items.find(i => i.type === 'video' && i.el);
+        
+        if (!mainVideo) { alert("トラッキング対象となる背景動画を追加してください"); return; }
+
+        const progressArea = document.getElementById('aiProgressArea');
+        const statusText = document.getElementById('aiStatusText');
+        const progressBar = document.getElementById('aiProgressBar');
+        
+        progressArea.classList.remove('hidden');
+        statusText.innerText = "🧠 AIモデル（DETR）をロード中...";
+        progressBar.style.width = "10%";
+
+        try {
+            if (!detectorPipeline) {
+                detectorPipeline = await pipeline('object-detection', 'Xenova/detr-resnet-50');
+            }
+
+            statusText.innerText = "🔍 映像フレームを解析・トラッキング中...";
+            const videoEl = mainVideo.el;
+            const step = 0.5; // 0.5秒おきにキーフレーム追加
+            const newKeyframes = [];
+            const category = document.getElementById('aiTargetCategory').value;
+
+            for (let t = targetItem.start; t <= targetItem.start + targetItem.duration; t += step) {
+                videoEl.currentTime = t - mainVideo.start;
+                await new Promise(r => setTimeout(r, 100)); // フレームロード待ち
+
+                // 裏Canvasにフレームを描画してAI判定
+                offCanvas.width = 640; offCanvas.height = 360;
+                offCtx.drawImage(videoEl, 0, 0, 640, 360);
+                
+                const results = await detectorPipeline(offCanvas.toDataURL('image/jpeg'));
+                let bestObj = null;
+
+                if (category === 'person') {
+                    bestObj = results.find(r => r.label === 'person' && r.score > 0.5);
+                } else {
+                    bestObj = results.sort((a,b) => (b.box.xmax - b.box.xmin)*(b.box.ymax - b.box.ymin) - (a.box.xmax - a.box.xmin)*(a.box.ymax - a.box.ymin))[0];
+                }
+
+                if (bestObj) {
+                    // 640x360 から 1920x1080 座標へ変換
+                    const centerX = ((bestObj.box.xmin + bestObj.box.xmax) / 2 / 640) * 1920;
+                    const centerY = ((bestObj.box.ymin + bestObj.box.ymax) / 2 / 360) * 1080;
+                    newKeyframes.push({ time: t - targetItem.start, x: centerX, y: centerY, scale: 1.0, opacity: 1.0 });
+                }
+
+                const progress = Math.min(100, Math.round(((t - targetItem.start) / targetItem.duration) * 100));
+                progressBar.style.width = `${progress}%`;
+            }
+
+            if (newKeyframes.length > 0) {
+                targetItem.keyframes = newKeyframes;
+                updateTimeline();
+                alert(`🎯 トラッキング成功！ ${newKeyframes.length} 個のキーフレームを自動配置しました。`);
+            } else {
+                alert("⚠️ 対象物を特定できませんでした。別のモードをお試しください。");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("⚠️ AIトラッキング中にエラーが発生しました");
+        } finally {
+            progressArea.classList.add('hidden');
+            aiModal.classList.add('hidden');
+        }
     });
 
     function splitSelectedItem() {
@@ -291,7 +396,6 @@
         return { x: prev.x + (next.x - prev.x) * ratio, y: prev.y + (next.y - prev.y) * ratio, scale: prev.scale + (next.scale - prev.scale) * ratio, opacity: prev.opacity + (next.opacity - prev.opacity) * ratio };
     }
 
-    // ★ 自由カラー対応・高精度背景消去アルゴリズム
     function drawChromaElement(el, w, h, targetColorHex, tol) {
         offCanvas.width = w; offCanvas.height = h;
         offCtx.drawImage(el, 0, 0, w, h);
@@ -299,19 +403,10 @@
         const data = imgData.data;
         const targetRgb = hexToRgb(targetColorHex);
         
-        // 色空間上のユーグリッド距離で類似色を正確に検出して判定
         for (let i = 0; i < data.length; i += 4) {
             const r = data[i], g = data[i+1], b = data[i+2];
-            const dist = Math.sqrt(
-                Math.pow(r - targetRgb[0], 2) + 
-                Math.pow(g - targetRgb[1], 2) + 
-                Math.pow(b - targetRgb[2], 2)
-            );
-            
-            // 指定色との差（距離）が許容値(tol)以下なら透過させる
-            if (dist < tol) {
-                data[i+3] = 0;
-            }
+            const dist = Math.sqrt(Math.pow(r - targetRgb[0], 2) + Math.pow(g - targetRgb[1], 2) + Math.pow(b - targetRgb[2], 2));
+            if (dist < tol) { data[i+3] = 0; }
         }
         offCtx.putImageData(imgData, 0, 0);
         return offCanvas;
@@ -345,8 +440,6 @@
                         
                         const vw = item.el.videoWidth || item.el.naturalWidth || 400;
                         const vh = item.el.videoHeight || item.el.naturalHeight || 225;
-                        
-                        // 指定色と感度で背景消去
                         const sourceEl = item.chroma ? drawChromaElement(item.el, vw, vh, item.chromaColor, item.chromaTol) : item.el;
 
                         if(type === 'video') { 
@@ -421,7 +514,6 @@
 
     ui.playBtn.addEventListener('click', () => togglePlay());
     
-    // --- 🖱️ タイムライン操作 ---
     let tlDraggingItem = null;
     let tlDragAction = null;
     let tlDragStartX = 0;
@@ -554,6 +646,11 @@
             if (item.type === 'video' && !item.muted) detachBtn.classList.remove('hidden');
             else detachBtn.classList.add('hidden');
 
+            // ★ AIトラッキングボタン（テキストまたはPiPの時だけ表示）
+            const aiTrackBtn = document.getElementById('aiTrackBtn');
+            if (item.type === 'text' || item.type === 'pip') aiTrackBtn.classList.remove('hidden');
+            else aiTrackBtn.classList.add('hidden');
+
             const chromaArea = document.getElementById('chromaArea');
             const chromaControls = document.getElementById('chromaControls');
             if (item.type === 'video' || item.type === 'pip') {
@@ -572,11 +669,11 @@
         } else { 
             ui.propsPanel.classList.add('opacity-50', 'pointer-events-none'); 
             document.getElementById('detachAudioBtn').classList.add('hidden');
+            document.getElementById('aiTrackBtn').classList.add('hidden');
             document.getElementById('chromaArea').classList.add('hidden');
         }
     }
 
-    // クロマキー・カラー変更イベント
     document.getElementById('propChromaEnable').addEventListener('change', (e) => {
         if(!selectedItemId) return;
         const item = project.items.find(i => i.id === selectedItemId);
