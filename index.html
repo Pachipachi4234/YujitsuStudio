@@ -8,7 +8,7 @@
     <style>
         body { background-color: #0d1117; color: #c9d1d9; }
         .tab-btn.active {
-            border-bottom: 2px solid #f78166;
+            border-bottom: 2px solid #58a6ff;
             color: #ffffff;
             font-weight: bold;
         }
@@ -19,11 +19,12 @@
     <!-- ナビゲーションバー -->
     <header class="bg-[#161b22] border-b border-[#30363d] px-6 py-3 flex items-center justify-between flex-none">
         <div class="flex items-center space-x-3">
-            <div class="bg-[#8957e5] text-white font-extrabold px-3 py-1 rounded-lg text-lg">Y</div>
+            <!-- ロゴをMaster Editorと同じブルーに統一 -->
+            <div class="bg-[#58a6ff] text-black font-extrabold px-3 py-1 rounded-lg text-lg">Y</div>
             <h1 class="text-xl font-bold text-white tracking-wide">YuJitsu Studio</h1>
         </div>
         
-<!-- タブ切り替えボタン -->
+        <!-- タブ切り替えボタン -->
         <nav class="flex space-x-6 text-sm text-gray-400">
             <button onclick="switchTab('clipforge')" id="tab-clipforge" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
                 <span>📋</span> ClipForge
@@ -31,33 +32,41 @@
             <button onclick="switchTab('moddel-one')" id="tab-moddel-one" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
                 <span>🎤</span> Moddel-one
             </button>
-            <button onclick="switchTab('autostudio')" id="tab-autostudio" class="tab-btn active py-2 px-1 hover:text-white transition flex items-center gap-1">
+            <button onclick="switchTab('autostudio')" id="tab-autostudio" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
                 <span>📺</span> AutoStudio
             </button>
             <button onclick="switchTab('clipcutter')" id="tab-clipcutter" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
                 <span>✂️</span> ClipCutter
             </button>
+            <!-- 🎬 Master Editor のタブを追加！ -->
+            <button onclick="switchTab('editor')" id="tab-editor" class="tab-btn active py-2 px-1 hover:text-white transition flex items-center gap-1 text-[#58a6ff]">
+                <span>🎬</span> Master Editor
+            </button>
         </nav>
     </header>
 
-    <!-- iframe表示エリア -->
+    <!-- iframe表示エリア (初期表示をEditorに変更) -->
     <main class="flex-1 bg-[#0d1117] relative">
-        <iframe id="app-frame" src="AutoStudio.html" class="w-full h-full border-none"></iframe>
+        <iframe id="app-frame" src="YuJitsuEditor.html" class="w-full h-full border-none"></iframe>
     </main>
 
     <script>
-const routes = {
+        const routes = {
             'clipforge': 'ClipForge.html',
-            'modelone': 'Moddel-one.html', // (※前回直していただいた部分)
+            'moddel-one': 'Moddel-one.html',
             'autostudio': 'AutoStudio.html',
-            'clipcutter': 'ClipCutter.html' // ◀★これを追加！
+            'clipcutter': 'ClipCutter.html',
+            'editor': 'YuJitsuEditor.html' // ◀ 追加
         };
+
         function switchTab(tabName) {
-            // タブの見た目を切り替え
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'text-[#58a6ff]'));
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            activeBtn.classList.add('active');
             
-            // iframeの読み込み先を変更
+            // Editorタブが選ばれた時だけ特別に文字色を光らせる
+            if(tabName === 'editor') activeBtn.classList.add('text-[#58a6ff]');
+            
             const frame = document.getElementById('app-frame');
             if (routes[tabName]) {
                 frame.src = routes[tabName];
