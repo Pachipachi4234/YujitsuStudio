@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ClipCutter | 自動無音カットツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; }
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.75rem; padding: 1.5rem; }
+        .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.5rem; padding: 0.5rem; width: 100%; }
+        .input-ui:focus { outline: none; border-color: #58a6ff; }
+    </style>
+</head>
+<body class="min-h-screen p-6 space-y-6 max-w-5xl mx-auto">
+    <header class="border-b border-[#30363d] pb-4">
+        <h1 class="text-3xl font-bold text-[#58a6ff]">ClipCutter <span class="text-sm font-normal text-gray-400">by YuJitsu</span></h1>
+        <p class="text-[#8b949e] mt-2">動画の無音部分を自動検知し、必要な部分だけを繋ぎ合わせた動画（MP4）を高速で生成します。</p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- 左カラム：設定パネル -->
+        <div class="space-y-6">
+            <div class="panel">
+                <h2 class="text-lg font-bold mb-4 text-[#79c0ff]">① 動画読み込み ＆ カット設定</h2>
+                
+                <input type="file" id="mediaInput" accept="video/*" class="block w-full text-sm text-[#8b949e] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#238636] file:text-white hover:file:bg-[#2ea043] cursor-pointer mb-4">
+                
+                <div class="space-y-4 text-sm mt-4">
+                    <div>
+                        <label class="block mb-1">無音と判定する音量 (デシベル)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="threshold" min="-60" max="-10" value="-35" class="flex-1">
+                            <span id="thresholdVal" class="w-12 text-right font-mono">-35dB</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">※右に行くほど（数値が大きいほど）少しの音でも無音とみなしてカットします。</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block mb-1">最小の無音時間 (秒)</label>
+                            <input type="number" id="minSilence" value="0.4" step="0.1" class="input-ui">
+                            <p class="text-xs text-gray-500 mt-1">この秒数以上静かならカット</p>
+                        </div>
+                        <div>
+                            <label class="block mb-1">前後の余白 (秒)</label>
+                            <input type="number" id="padding" value="0.2" step="0.1" class="input-ui">
+                            <p class="text-xs text-gray-500 mt-1">言葉の頭切れを防ぐ余裕</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="analyzeBtn" class="mt-6 bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-3 rounded-md font-bold w-full transition disabled:opacity-50">
+                    解析してカット位置を決定
+                </button>
+                <div id="statusMsg" class="mt-2 text-xs text-[#58a6ff] hidden"></div>
+            </div>
+
+            <div class="panel">
+                <h2 class="text-lg font-bold mb-2 text-[#79c0ff]">② カット動画の書き出し</h2>
+                <p class="text-xs text-gray-400 mb-4">解析結果をもとに、無音を飛ばしながら録画して1本のMP4にします。</p>
+                <button id="exportBtn" class="bg-[#8957e5] hover:bg-[#9d6cfa] text-white px-4 py-3 rounded-md font-bold w-full transition disabled:opacity-50" disabled>
+                    MP4で書き出す
+                </button>
+            </div>
+        </div>
+
+        <!-- 右カラム：プレビューと結果 -->
+        <div class="space-y-6">
+            <div class="panel">
+                <h2 class="text-lg font-bold mb-4 text-[#79c0ff]">プレビュー</h2>
+                <div class="w-full aspect-video bg-black rounded-lg overflow-hidden border border-[#30363d] relative">
+                    <video id="videoPlayer" class="w-full h-full object-contain"></video>
+                    <!-- 書き出し用非表示キャンバス -->
+                    <canvas id="exportCanvas" class="hidden"></canvas>
+                </div>
+                
+                <div class="flex gap-2 mt-4">
+                    <button id="previewBtn" class="flex-1 bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-2 rounded text-sm disabled:opacity-50" disabled>
+                        ▶ カット後の状態を確認再生
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 class="text-lg font-bold mb-2 text-[#79c0ff]">解析結果</h2>
+                <div class="flex justify-between text-sm mb-2 pb-2 border-b border-[#30363d]">
+                    <span>元の長さ: <span id="originalTime">0.0</span>s</span>
+                    <span>▶</span>
+                    <span class="text-[#79c0ff] font-bold">カット後: <span id="newTime">0.0</span>s</span>
+                </div>
+                <div id="segmentsList" class="max-h-40 overflow-y-auto text-xs space-y-1 font-mono text-gray-400">
+                    ※ここに残す部分（有音）のリストが表示されます。
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // UI Elements
+    const el = {
+        input: document.getElementById('mediaInput'),
+        threshold: document.getElementById('threshold'),
+        thresholdVal: document.getElementById('thresholdVal'),
+        minSilence: document.getElementById('minSilence'),
+        padding: document.getElementById('padding'),
+        analyzeBtn: document.getElementById('analyzeBtn'),
+        exportBtn: document.getElementById('exportBtn'),
+        previewBtn: document.getElementById('previewBtn'),
+        video: document.getElementById('videoPlayer'),
+        canvas: document.getElementById('exportCanvas'),
+        status: document.getElementById('statusMsg'),
+        origTime: document.getElementById('originalTime'),
+        newTime: document.getElementById('newTime'),
+        segList: document.getElementById('segmentsList')
+    };
+
+    let keepSegments = [];
+    let audioBuffer = null;
+    let isPreviewing = false;
+    let isExporting = false;
+    let mediaUrl = null;
+
+    // スライダー連動
+    el.threshold.addEventListener('input', (e) => { el.thresholdVal.innerText = e.target.value + 'dB'; });
+
+    // 動画読み込み
+    el.input.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        if(mediaUrl) URL.revokeObjectURL(mediaUrl);
+        mediaUrl = URL.createObjectURL(file);
+        el.video.src = mediaUrl;
+        
+        el.video.onloadedmetadata = () => {
+            el.origTime.innerText = el.video.duration.toFixed(1);
+            el.canvas.width = el.video.videoWidth;
+            el.canvas.height = el.video.videoHeight;
+        };
+
+        // 音声データを解析用にデコード
+        el.status.classList.remove('hidden');
+        el.status.innerText = "⏳ 音声データを準備中...";
+        el.analyzeBtn.disabled = true;
+
+        const arrayBuffer = await file.arrayBuffer();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        
+        el.status.innerText = "✅ 準備完了！解析できます。";
+        el.analyzeBtn.disabled = false;
+    });
+
+    // 解析処理 (無音検知)
+    el.analyzeBtn.addEventListener('click', () => {
+        if(!audioBuffer) return;
+        el.status.innerText = "✨ 解析中...";
+        
+        const data = audioBuffer.getChannelData(0);
+        const sampleRate = audioBuffer.sampleRate;
+        const dbThreshold = parseFloat(el.threshold.value);
+        const ampThreshold = Math.pow(10, dbThreshold / 20); // dB to Amplitude
+        const minSilenceFrames = parseFloat(el.minSilence.value) * sampleRate;
+        const padFrames = parseFloat(el.padding.value) * sampleRate;
+        
+        const chunkSize = Math.floor(sampleRate * 0.05); // 0.05秒ごとの塊で判定
+        let silentRegions = [];
+        let isSilent = false;
+        let silentStart = 0;
+
+        // RMS(音量)を計算して無音区間をざっくり出す
+        for(let i=0; i<data.length; i+=chunkSize) {
+            let sum = 0;
+            for(let j=0; j<chunkSize && i+j<data.length; j++) { sum += data[i+j] * data[i+j]; }
+            let rms = Math.sqrt(sum / chunkSize);
+            let silentNow = rms < ampThreshold;
+
+            if(!isSilent && silentNow) {
+                isSilent = true; silentStart = i;
+            } else if(isSilent && !silentNow) {
+                isSilent = false;
+                if(i - silentStart >= minSilenceFrames) {
+                    silentRegions.push({start: silentStart, end: i});
+                }
+            }
+        }
+        if(isSilent && data.length - silentStart >= minSilenceFrames) silentRegions.push({start: silentStart, end: data.length});
+
+        // 無音区間を反転させて「残す部分（有音）」を作り、余白(padding)を足す
+        keepSegments = [];
+        let currentStart = 0;
+        for(let reg of silentRegions) {
+            let keepStart = Math.max(0, currentStart - padFrames);
+            let keepEnd = Math.min(data.length, reg.start + padFrames);
+            if(keepEnd > keepStart) keepSegments.push({start: keepStart/sampleRate, end: keepEnd/sampleRate});
+            currentStart = reg.end;
+        }
+        let finalStart = Math.max(0, currentStart - padFrames);
+        if(finalStart < data.length) keepSegments.push({start: finalStart/sampleRate, end: audioBuffer.duration});
+
+        // プレビュー表示更新
+        let totalNewTime = 0;
+        el.segList.innerHTML = '';
+        keepSegments.forEach((seg, i) => {
+            totalNewTime += (seg.end - seg.start);
+            el.segList.innerHTML += `<div>[${i+1}] ${seg.start.toFixed(2)}s 〜 ${seg.end.toFixed(2)}s</div>`;
+        });
+        
+        el.newTime.innerText = totalNewTime.toFixed(1);
+        el.status.innerText = "✅ 解析完了！";
+        el.previewBtn.disabled = false;
+        el.exportBtn.disabled = false;
+    });
+
+    // プレビュー再生コントロール
+    let currentSegIndex = 0;
+    el.video.addEventListener('timeupdate', () => {
+        if((isPreviewing || isExporting) && keepSegments.length > 0) {
+            let seg = keepSegments[currentSegIndex];
+            if(el.video.currentTime >= seg.end) {
+                currentSegIndex++;
+                if(currentSegIndex < keepSegments.length) {
+                    el.video.currentTime = keepSegments[currentSegIndex].start; // 次の有音へジャンプ
+                } else {
+                    el.video.pause();
+                    isPreviewing = false;
+                    el.previewBtn.innerText = "▶ カット後の状態を確認再生";
+                }
+            }
+        }
+    });
+
+    el.previewBtn.addEventListener('click', () => {
+        if(keepSegments.length === 0) return;
+        if(isPreviewing) {
+            el.video.pause(); isPreviewing = false; el.previewBtn.innerText = "▶ カット後の状態を確認再生";
+        } else {
+            isPreviewing = true;
+            currentSegIndex = 0;
+            el.video.currentTime = keepSegments[0].start;
+            el.video.play();
+            el.previewBtn.innerText = "⏸ プレビュー停止";
+        }
+    });
+
+    // MP4書き出し処理 (Canvas + MediaRecorder)
+    el.exportBtn.addEventListener('click', async () => {
+        if(keepSegments.length === 0) return;
+        isExporting = true;
+        el.exportBtn.innerText = "録画して書き出し中... (画面を閉じないでください)";
+        el.exportBtn.classList.replace('bg-[#8957e5]', 'bg-gray-600');
+
+        const ctx = el.canvas.getContext('2d');
+        const drawLoop = () => {
+            if(!el.video.paused && !el.video.ended) ctx.drawImage(el.video, 0, 0, el.canvas.width, el.canvas.height);
+            if(isExporting) requestAnimationFrame(drawLoop);
+        };
+
+        const canvasStream = el.canvas.captureStream(30);
+        let audioStream = new MediaStream();
+        try {
+            const actx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = actx.createMediaElementSource(el.video);
+            const dest = actx.createMediaStreamDestination();
+            source.connect(dest);
+            source.connect(actx.destination);
+            audioStream = dest.stream;
+        } catch(e) {
+            if(el.video.captureStream) audioStream = el.video.captureStream();
+        }
+
+        const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+        const mimeOptions = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+        const mime = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || '';
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        
+        const rec = new MediaRecorder(combinedStream, mime ? {mimeType: mime} : undefined);
+        const chunks = [];
+        rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+        rec.onstop = () => {
+            const blob = new Blob(chunks, { type: mime });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `clipcutter_export.${ext}`;
+            a.click();
+            isExporting = false;
+            el.exportBtn.innerText = "MP4で書き出す";
+            el.exportBtn.classList.replace('bg-gray-600', 'bg-[#8957e5]');
+        };
+
+        currentSegIndex = 0;
+        el.video.currentTime = keepSegments[0].start;
+        
+        rec.start(100); // 録画開始
+        await el.video.play();
+        drawLoop();
+
+        el.video.onpause = () => {
+            if(isExporting && currentSegIndex >= keepSegments.length) rec.stop();
+        }
+    });
+</script>
+</body>
+</html>
