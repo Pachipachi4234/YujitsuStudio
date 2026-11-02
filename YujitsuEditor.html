@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>YuJitsu Editor | ブラウザ完結型タイムラインエディタ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; user-select: none; }
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
+        .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.25rem; padding: 0.25rem 0.5rem; width: 100%; font-size: 0.875rem;}
+        .input-ui:focus { outline: none; border-color: #58a6ff; }
+        
+        /* タイムラインのスタイル */
+        .timeline-track { position: relative; height: 44px; background: #010409; border-bottom: 1px solid #30363d; margin-bottom: 4px; border-radius: 4px; overflow: hidden;}
+        .timeline-item { position: absolute; height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: bold; color: white; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .track-video { background: #238636; }
+        .track-pip { background: #8957e5; }
+        .track-text { background: #79c0ff; color: #000; }
+        .track-audio { background: #d29922; }
+        .item-selected { box-shadow: 0 0 0 2px #58a6ff, inset 0 0 0 1px rgba(0,0,0,0.8) !important; z-index: 10; }
+        
+        .kf-marker { position: absolute; top: 0; bottom: 0; width: 8px; background: rgba(255,255,255,0.8); border-left: 1px solid #000; border-right: 1px solid #000; transform: skewX(-20deg); pointer-events: none;}
+        
+        #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff0000; z-index: 50; pointer-events: none; }
+        #playhead::before { content: ''; position: absolute; top: -10px; left: -5px; width: 12px; height: 12px; background: #ff0000; border-radius: 50%; }
+
+        /* スクロールバー */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #010409; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden p-2 gap-2">
+
+    <!-- ツールバー -->
+    <header class="panel flex items-center justify-between px-4 py-2 flex-none">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-[#58a6ff]">YuJitsu Editor</h1>
+            <button id="saveBtn" class="bg-[#21262d] hover:bg-[#30363d] px-3 py-1 rounded text-sm border border-[#30363d]">💾 一時保存</button>
+            <button id="loadBtn" class="bg-[#21262d] hover:bg-[#30363d] px-3 py-1 rounded text-sm border border-[#30363d]">📂 保存復元</button>
+        </div>
+        <div class="flex items-center gap-2">
+            <div id="statusMsg" class="text-xs text-[#58a6ff] font-mono mr-4 hidden">処理中...</div>
+            <button id="exportBtn" class="bg-[#8957e5] hover:bg-[#9d6cfa] text-white px-4 py-1 rounded text-sm font-bold">🎬 MP4書き出し</button>
+        </div>
+    </header>
+
+    <!-- メインワークスペース -->
+    <div class="flex flex-1 gap-2 min-h-0">
+        <!-- プレビューエリア -->
+        <div class="panel flex-1 flex flex-col p-2 relative">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-sm font-bold text-gray-400">プレビュー (選択アイテムはドラッグ移動可)</h2>
+                <div class="text-xs font-mono bg-black px-2 py-1 rounded text-[#58a6ff]" id="timeDisplay">00:00.0 / 00:00.0</div>
+            </div>
+            
+            <div class="flex-1 bg-black rounded overflow-hidden relative flex items-center justify-center border border-[#30363d]">
+                <!-- レンダリング用キャンバス -->
+                <canvas id="previewCanvas" class="max-w-full max-h-full cursor-move"></canvas>
+            </div>
+
+            <!-- コントローラー -->
+            <div class="flex items-center gap-2 mt-2">
+                <button id="playBtn" class="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-1 rounded font-bold w-24">再生</button>
+                <input type="range" id="seekSlider" class="flex-1 cursor-pointer" value="0" step="0.01" min="0">
+                <button id="addTimeBtn" class="bg-[#21262d] text-xs px-2 py-1 rounded hover:bg-[#30363d] border border-[#30363d]">+5秒延長</button>
+            </div>
+        </div>
+
+        <!-- プロパティ＆素材追加エリア -->
+        <div class="panel w-80 flex flex-col p-4 overflow-y-auto">
+            <h2 class="text-sm font-bold text-gray-400 mb-4 border-b border-[#30363d] pb-2">➕ 素材追加</h2>
+            
+            <div class="space-y-3 mb-6">
+                <div>
+                    <label class="block text-xs mb-1">🎥 映像 / 🎵 音声 を配置</label>
+                    <input type="file" id="mediaUpload" accept="video/*,audio/*" class="text-xs w-full cursor-pointer bg-[#010409] border border-[#30363d] rounded p-1">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1">🖼 PiP (画像/小窓動画) を配置</label>
+                    <input type="file" id="pipUpload" accept="image/*,video/*" class="text-xs w-full cursor-pointer bg-[#010409] border border-[#30363d] rounded p-1">
+                </div>
+                <button id="addTextBtn" class="w-full bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] py-1.5 rounded text-xs font-bold text-[#79c0ff]">📝 テキストを追加</button>
+            </div>
+
+            <h2 class="text-sm font-bold text-gray-400 mb-2 border-b border-[#30363d] pb-2">⚙️ 選択アイテムの設定</h2>
+            <div id="propertiesPanel" class="text-xs space-y-3 opacity-50 pointer-events-none transition-opacity">
+                
+                <div id="propTextArea" class="hidden">
+                    <label class="block mb-1">テキスト内容</label>
+                    <textarea id="propText" class="input-ui h-12"></textarea>
+                    <div class="flex gap-2 mt-1">
+                        <input type="color" id="propColor" class="input-ui h-6 p-0 w-1/2">
+                        <input type="number" id="propSize" class="input-ui w-1/2" placeholder="サイズ">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 bg-[#010409] p-2 rounded border border-[#30363d]">
+                    <div><label class="block mb-1 text-gray-500">開始(秒)</label><input type="number" id="propStart" class="input-ui" step="0.1"></div>
+                    <div><label class="block mb-1 text-gray-500">長さ(秒)</label><input type="number" id="propDuration" class="input-ui" step="0.1"></div>
+                </div>
+
+                <!-- キーフレーム対応プロパティ -->
+                <div class="bg-[#010409] p-2 rounded border border-[#30363d] space-y-2">
+                    <div class="flex justify-between items-center text-gray-500 mb-1">
+                        <span>アニメーション設定</span>
+                        <button id="addKfBtn" class="bg-[#58a6ff] text-black px-2 py-0.5 rounded font-bold text-[10px] hover:bg-[#79c0ff]">🔷 現在位置にキーフレーム打鍵</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><label class="block mb-1">X座標</label><input type="number" id="propX" class="input-ui"></div>
+                        <div><label class="block mb-1">Y座標</label><input type="number" id="propY" class="input-ui"></div>
+                        <div><label class="block mb-1">スケール(倍)</label><input type="number" id="propScale" class="input-ui" step="0.1" value="1.0"></div>
+                        <div><label class="block mb-1">透明度(0〜1)</label><input type="number" id="propOpacity" class="input-ui" step="0.1" value="1.0"></div>
+                    </div>
+                </div>
+
+                <!-- AIトラッキング機能 -->
+                <div id="trackingArea" class="bg-[#21262d] p-2 rounded border border-[#30363d] hidden">
+                    <label class="block mb-1 font-bold text-[#f78166]">🤖 AI自動トラッキング (PiP/テキスト用)</label>
+                    <p class="text-[10px] text-gray-400 mb-2">背景の映像の「人」や「モノ」をAIが認識し、自動でキーフレームを打ち込んで追従させます。</p>
+                    <button id="trackBtn" class="w-full bg-[#f78166] hover:bg-[#ea4a5a] text-white py-1.5 rounded font-bold">▶ 映像を解析して追従開始</button>
+                </div>
+
+                <button id="deleteItemBtn" class="w-full mt-4 bg-red-900/50 hover:bg-red-800 text-red-300 py-2 rounded border border-red-800/50 font-bold">🗑 選択アイテムを削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- タイムラインエリア -->
+    <div class="panel h-64 flex flex-col flex-none p-2 relative">
+        <div class="flex text-xs text-gray-400 mb-1 gap-2">
+            <div class="w-20 flex-none">トラック</div>
+            <div class="flex-1 relative border-b border-[#30363d] h-4 cursor-pointer" id="timelineRuler"></div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto overflow-x-hidden relative flex flex-col gap-1" id="timelineContainer">
+            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🎥 映像</div><div class="flex-1 timeline-track" id="track-video"></div></div>
+            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🖼 PiP</div><div class="flex-1 timeline-track" id="track-pip"></div></div>
+            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">📝 テキスト</div><div class="flex-1 timeline-track" id="track-text"></div></div>
+            <div class="flex relative"><div class="w-20 flex-none text-[11px] text-gray-500 py-3">🎵 音声</div><div class="flex-1 timeline-track" id="track-audio"></div></div>
+            <div id="playhead" style="left: 0%;"></div>
+        </div>
+    </div>
+
+<script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
+    env.allowLocalModels = false;
+
+    // --- State & Core Objects ---
+    const project = {
+        duration: 30, // 初期30秒
+        items: [] // アイテムリスト
+    };
+    
+    let currentTime = 0;
+    let isPlaying = false;
+    let selectedItemId = null;
+    let lastTimeUpdate = 0;
+    let isExporting = false;
+    let audioCtxExport = null;
+
+    // --- UI Elements ---
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1920; canvas.height = 1080; // Full HDベース
+    
+    const ui = {
+        playBtn: document.getElementById('playBtn'),
+        seekSlider: document.getElementById('seekSlider'),
+        timeDisplay: document.getElementById('timeDisplay'),
+        playhead: document.getElementById('playhead'),
+        propsPanel: document.getElementById('propertiesPanel'),
+        statusMsg: document.getElementById('statusMsg'),
+        ruler: document.getElementById('timelineRuler')
+    };
+
+    // --- Data Models ---
+    function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+    function addItem(type, src, fileObj) {
+        const item = {
+            id: generateId(),
+            type: type, 
+            src: src, // base64 or objectURL
+            start: currentTime, 
+            duration: 5, 
+            text: type === 'text' ? '新規テキスト' : '', 
+            color: '#ffffff', 
+            size: 100, 
+            el: null,
+            // アニメーション用キーフレーム配列 (timeはアイテム内の相対時間 0.0〜)
+            // { time: 0, x: 960, y: 540, scale: 1, opacity: 1 }
+            keyframes: [] 
+        };
+
+        // 初期キーフレーム（開始位置）を打つ
+        item.keyframes.push({ time: 0, x: 960, y: 540, scale: 1.0, opacity: 1.0 });
+
+        if (type === 'video' || type === 'audio' || type === 'pip') {
+            const isImage = fileObj && fileObj.type.startsWith('image');
+            const el = document.createElement(isImage ? 'img' : (type === 'audio' ? 'audio' : 'video'));
+            el.src = src; el.crossOrigin = "anonymous";
+            
+            if (isImage) {
+                el.onload = () => { updateTimeline(); };
+            } else {
+                el.onloadedmetadata = () => {
+                    item.duration = el.duration;
+                    if(type === 'video' && item.start + item.duration > project.duration) {
+                        project.duration = item.start + item.duration; // タイムライン延長
+                    }
+                    updateTimeline();
+                };
+            }
+            item.el = el;
+        }
+
+        project.items.push(item);
+        selectItem(item.id);
+        updateTimeline();
+    }
+
+    // --- Keyframe Interpolation Logic ---
+    function getInterpolatedProps(item, localTime) {
+        if (!item.keyframes || item.keyframes.length === 0) return { x: 960, y: 540, scale: 1, opacity: 1 };
+        if (item.keyframes.length === 1) return item.keyframes[0];
+
+        // 時間順にソート
+        const kfs = [...item.keyframes].sort((a, b) => a.time - b.time);
+        
+        if (localTime <= kfs[0].time) return kfs[0];
+        if (localTime >= kfs[kfs.length - 1].time) return kfs[kfs.length - 1];
+
+        // 挟まれている2つのキーフレームを探す
+        let prev = kfs[0], next = kfs[1];
+        for (let i = 0; i < kfs.length - 1; i++) {
+            if (localTime >= kfs[i].time && localTime <= kfs[i+1].time) {
+                prev = kfs[i]; next = kfs[i+1]; break;
+            }
+        }
+
+        // 線形補間 (Lerp)
+        const ratio = (localTime - prev.time) / (next.time - prev.time);
+        return {
+            x: prev.x + (next.x - prev.x) * ratio,
+            y: prev.y + (next.y - prev.y) * ratio,
+            scale: prev.scale + (next.scale - prev.scale) * ratio,
+            opacity: prev.opacity + (next.opacity - prev.opacity) * ratio
+        };
+    }
+
+    // --- Canvas Rendering Loop ---
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 描画順： Video(背景) -> PiP -> Text
+        const drawOrder = ['video', 'pip', 'text'];
+        
+        drawOrder.forEach(type => {
+            const activeItems = project.items.filter(item => item.type === type && currentTime >= item.start && currentTime <= (item.start + item.duration));
+            
+            activeItems.forEach(item => {
+                const localTime = currentTime - item.start;
+                const props = getInterpolatedProps(item, localTime);
+                
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, Math.min(1, props.opacity));
+                
+                // 選択中アイテムにはハイライト(外枠発行)
+                if (item.id === selectedItemId && !isExporting) {
+                    ctx.shadowColor = '#58a6ff'; ctx.shadowBlur = 20;
+                }
+
+                if (type === 'video' || type === 'pip') {
+                    if (item.el && (item.el.readyState >= 2 || item.el.complete)) {
+                        // 動画の再生位置を同期
+                        if(item.el.tagName === 'VIDEO') {
+                            if(Math.abs(item.el.currentTime - localTime) > 0.1) item.el.currentTime = localTime;
+                        }
+                        
+                        if(type === 'video') {
+                            // 映像は全画面
+                            ctx.drawImage(item.el, 0, 0, canvas.width, canvas.height);
+                        } else {
+                            // PiPはプロパティに従う (中央基準)
+                            const w = (item.el.videoWidth || item.el.naturalWidth || 400) * props.scale;
+                            const h = (item.el.videoHeight || item.el.naturalHeight || 225) * props.scale;
+                            // 見やすいようにサイズを適度に縮小計算
+                            const drawW = w * 0.3; const drawH = h * 0.3; 
+                            ctx.translate(props.x, props.y);
+                            ctx.drawImage(item.el, -drawW/2, -drawH/2, drawW, drawH);
+                        }
+                    }
+                } else if (type === 'text') {
+                    ctx.translate(props.x, props.y);
+                    ctx.scale(props.scale, props.scale);
+                    ctx.font = `900 ${item.size}px sans-serif`;
+                    ctx.fillStyle = item.color;
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = item.size * 0.1;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.lineJoin = 'round';
+                    ctx.strokeText(item.text, 0, 0);
+                    ctx.shadowBlur = 0; // 内側は影なし
+                    ctx.fillText(item.text, 0, 0);
+                }
+                ctx.restore();
+            });
+        });
+
+        // UI表示更新 (エクスポート中以外)
+        if (!isExporting) {
+            ui.timeDisplay.innerText = `${currentTime.toFixed(1)} / ${project.duration.toFixed(1)}`;
+            ui.seekSlider.value = (currentTime / project.duration) * 100;
+            ui.playhead.style.left = `${ui.seekSlider.value}%`;
+            
+            // 選択中のプロパティパネル数値をリアルタイム更新（再生中や移動時）
+            if (selectedItemId) {
+                const item = project.items.find(i => i.id === selectedItemId);
+                if(item) {
+                    const props = getInterpolatedProps(item, currentTime - item.start);
+                    document.getElementById('propX').value = Math.round(props.x);
+                    document.getElementById('propY').value = Math.round(props.y);
+                    document.getElementById('propScale').value = props.scale.toFixed(2);
+                    document.getElementById('propOpacity').value = props.opacity.toFixed(2);
+                }
+            }
+        }
+
+        if (isPlaying && !isExporting) {
+            const now = performance.now();
+            const delta = (now - lastTimeUpdate) / 1000;
+            currentTime += delta;
+            lastTimeUpdate = now;
+            
+            if (currentTime >= project.duration) {
+                currentTime = project.duration;
+                togglePlay(false);
+            }
+        }
+        
+        requestAnimationFrame(render);
+    }
+    render(); // ループ開始
+
+    // --- Controls ---
+    function togglePlay(force) {
+        isPlaying = force !== undefined ? force : !isPlaying;
+        ui.playBtn.innerText = isPlaying ? '⏸ 停止' : '▶ 再生';
+        ui.playBtn.className = isPlaying ? 'bg-[#d73a49] text-white px-4 py-1 rounded font-bold w-24' : 'bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-1 rounded font-bold w-24';
+        lastTimeUpdate = performance.now();
+        
+        project.items.forEach(item => {
+            if (item.el && item.el.tagName !== 'IMG') {
+                if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
+                    item.el.play().catch(()=>{});
+                } else {
+                    item.el.pause();
+                }
+            }
+        });
+    }
+
+    ui.playBtn.addEventListener('click', () => togglePlay());
+    ui.seekSlider.addEventListener('input', (e) => {
+        currentTime = (parseFloat(e.target.value) / 100) * project.duration;
+        project.items.forEach(item => {
+            if (item.el && item.el.tagName !== 'IMG' && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
+                item.el.currentTime = currentTime - item.start;
+            }
+        });
+    });
+    
+    // ルーラークリックでシーク
+    ui.ruler.addEventListener('mousedown', (e) => {
+        const rect = ui.ruler.getBoundingClientRect();
+        currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * project.duration;
+        ui.seekSlider.value = (currentTime / project.duration) * 100;
+        ui.seekSlider.dispatchEvent(new Event('input'));
+    });
+
+    document.getElementById('addTimeBtn').addEventListener('click', () => { project.duration += 5; updateTimeline(); });
+
+    // --- Inputs ---
+    document.getElementById('addTextBtn').addEventListener('click', () => addItem('text', null, null));
+    document.getElementById('mediaUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0]; if(!file) return;
+        addItem(file.type.startsWith('video') ? 'video' : 'audio', URL.createObjectURL(file), file);
+        e.target.value = ''; 
+    });
+    document.getElementById('pipUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0]; if(!file) return;
+        addItem('pip', URL.createObjectURL(file), file);
+        e.target.value = '';
+    });
+
+    // --- Timeline UI ---
+    function updateTimeline() {
+        ['video', 'pip', 'text', 'audio'].forEach(trackType => {
+            const container = document.getElementById(`track-${trackType}`);
+            container.innerHTML = '';
+            
+            project.items.filter(i => i.type === trackType).forEach(item => {
+                const el = document.createElement('div');
+                el.className = `timeline-item track-${trackType} ${item.id === selectedItemId ? 'item-selected' : ''}`;
+                
+                const left = (item.start / project.duration) * 100;
+                const width = (item.duration / project.duration) * 100;
+                
+                el.style.left = `${left}%`;
+                el.style.width = `${width}%`;
+                el.innerText = item.type === 'text' ? item.text : `${item.type.toUpperCase()}`;
+                
+                // キーフレームマーカーの描画
+                if(item.keyframes) {
+                    item.keyframes.forEach(kf => {
+                        const m = document.createElement('div');
+                        m.className = 'kf-marker';
+                        m.style.left = `${(kf.time / item.duration) * 100}%`;
+                        el.appendChild(m);
+                    });
+                }
+                
+                el.onclick = (e) => { e.stopPropagation(); selectItem(item.id); };
+                container.appendChild(el);
+            });
+        });
+    }
+
+    // --- Properties ---
+    function selectItem(id) {
+        selectedItemId = id;
+        updateTimeline();
+        
+        const item = project.items.find(i => i.id === id);
+        if (item) {
+            ui.propsPanel.classList.remove('opacity-50', 'pointer-events-none');
+            document.getElementById('propStart').value = item.start.toFixed(2);
+            document.getElementById('propDuration').value = item.duration.toFixed(2);
+            
+            if(item.type === 'text') {
+                document.getElementById('propTextArea').classList.remove('hidden');
+                document.getElementById('propText').value = item.text;
+                document.getElementById('propColor').value = item.color;
+                document.getElementById('propSize').value = item.size;
+            } else {
+                document.getElementById('propTextArea').classList.add('hidden');
+            }
+
+            // トラッキングボタンの表示制御
+            if (item.type === 'pip' || item.type === 'text') {
+                document.getElementById('trackingArea').classList.remove('hidden');
+            } else {
+                document.getElementById('trackingArea').classList.add('hidden');
+            }
+        } else {
+            ui.propsPanel.classList.add('opacity-50', 'pointer-events-none');
+        }
+    }
+
+    // 基本プロパティ変更
+    ['propStart', 'propDuration', 'propText', 'propColor', 'propSize'].forEach(id => {
+        document.getElementById(id).addEventListener('input', (e) => {
+            if(!selectedItemId) return;
+            const item = project.items.find(i => i.id === selectedItemId);
+            const key = id.replace('prop', '').toLowerCase();
+            if(key === 'text' || key === 'color') item[key] = e.target.value;
+            else item[key] = parseFloat(e.target.value);
+            updateTimeline();
+        });
+    });
+
+    // キーフレーム追加ボタン (現在位置に値を固定)
+    document.getElementById('addKfBtn').addEventListener('click', () => {
+        if(!selectedItemId) return;
+        const item = project.items.find(i => i.id === selectedItemId);
+        const localTime = currentTime - item.start;
+        if(localTime < 0 || localTime > item.duration) return alert("アイテムの表示範囲外です");
+        
+        // 入力フォームの値を取得
+        const x = parseFloat(document.getElementById('propX').value);
+        const y = parseFloat(document.getElementById('propY').value);
+        const scale = parseFloat(document.getElementById('propScale').value);
+        const opacity = parseFloat(document.getElementById('propOpacity').value);
+        
+        // 既存の近似時間のキーフレームがあれば上書き、なければ追加
+        const existingIdx = item.keyframes.findIndex(k => Math.abs(k.time - localTime) < 0.1);
+        if(existingIdx >= 0) {
+            item.keyframes[existingIdx] = { time: localTime, x, y, scale, opacity };
+        } else {
+            item.keyframes.push({ time: localTime, x, y, scale, opacity });
+        }
+        updateTimeline();
+        // アニメーション効果をUIに示す
+        document.getElementById('addKfBtn').innerText = "✅ 記録完了！";
+        setTimeout(() => document.getElementById('addKfBtn').innerText = "🔷 現在位置にキーフレーム打鍵", 1000);
+    });
+
+    document.getElementById('deleteItemBtn').addEventListener('click', () => {
+        project.items = project.items.filter(i => i.id !== selectedItemId);
+        selectItem(null); updateTimeline();
+    });
+
+    // --- Direct Drag Manipulation ---
+    let isDragging = false; let dragTarget = null;
+    let dragOffsetX = 0; let dragOffsetY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
+        const clickX = (e.clientX - rect.left) * scaleX; const clickY = (e.clientY - rect.top) * scaleY;
+
+        for (let i = project.items.length - 1; i >= 0; i--) {
+            const item = project.items[i];
+            const localTime = currentTime - item.start;
+            if (localTime >= 0 && localTime <= item.duration) {
+                if (item.type === 'text' || item.type === 'pip') {
+                    const props = getInterpolatedProps(item, localTime);
+                    // 簡易的な中央矩形判定 (半径150px)
+                    if (Math.abs(clickX - props.x) < 150 && Math.abs(clickY - props.y) < 150) {
+                        dragTarget = item; selectItem(item.id);
+                        dragOffsetX = clickX - props.x; dragOffsetY = clickY - props.y;
+                        isDragging = true;
+                        return;
+                    }
+                }
+            }
+        }
+        selectItem(null);
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDragging || !dragTarget) return;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
+        const newX = (e.clientX - rect.left) * scaleX - dragOffsetX;
+        const newY = (e.clientY - rect.top) * scaleY - dragOffsetY;
+        
+        // 即席で現在のプロパティパネルの値を書き換え（その後手動でキーフレームボタンを押すか、自動記録するか）
+        // ここでは「フォームの値だけ変更」し、ユーザーが🔷ボタンを押す設計
+        if(selectedItemId === dragTarget.id) {
+            document.getElementById('propX').value = Math.round(newX);
+            document.getElementById('propY').value = Math.round(newY);
+            
+            // UX向上のため、ドラッグ中は一時的に描画座標を強制上書き（キーフレームにはまだ保存しない）
+            // これにより画面上で動いているのが見える
+            const localTime = currentTime - dragTarget.start;
+            const existingIdx = dragTarget.keyframes.findIndex(k => Math.abs(k.time - localTime) < 0.1);
+            if(existingIdx >= 0) {
+                dragTarget.keyframes[existingIdx].x = newX;
+                dragTarget.keyframes[existingIdx].y = newY;
+            } else {
+                // 自動でキーフレームを打つ
+                dragTarget.keyframes.push({ 
+                    time: localTime, x: newX, y: newY, 
+                    scale: parseFloat(document.getElementById('propScale').value), 
+                    opacity: parseFloat(document.getElementById('propOpacity').value) 
+                });
+            }
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => { isDragging = false; dragTarget = null; updateTimeline();});
+    canvas.addEventListener('mouseleave', () => { isDragging = false; dragTarget = null; updateTimeline();});
+
+    // --- 🤖 AI トラッキング (オブジェクト検出) ---
+    document.getElementById('trackBtn').addEventListener('click', async () => {
+        if(!selectedItemId) return;
+        const targetItem = project.items.find(i => i.id === selectedItemId);
+        const mainVideo = project.items.find(i => i.type === 'video'); // 背景映像を取得
+        
+        if(!mainVideo || !mainVideo.el) return alert("背景となるメイン映像(Video)が見つかりません！");
+        if(mainVideo.duration < 1) return;
+
+        ui.statusMsg.innerText = "🤖 AIモデル読み込み中...";
+        ui.statusMsg.classList.remove('hidden');
+        
+        try {
+            // Xenovaの物体検出モデルをロード (軽量な detr-resnet-50)
+            const detector = await pipeline('object-detection', 'Xenova/detr-resnet-50');
+            
+            ui.statusMsg.innerText = "🔍 映像を解析してキーフレームを生成中...";
+            
+            // ターゲットアイテムの開始から終了まで、1秒間に2回のペース(0.5s間隔)で解析
+            const interval = 0.5;
+            targetItem.keyframes = []; // 既存キーフレームをリセット
+            
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = mainVideo.el.videoWidth || 1280;
+            tmpCanvas.height = mainVideo.el.videoHeight || 720;
+            const tmpCtx = tmpCanvas.getContext('2d');
+            
+            // 処理のために動画をミュートで裏で回す
+            const origTime = mainVideo.el.currentTime;
+            
+            for(let t = targetItem.start; t <= targetItem.start + targetItem.duration; t += interval) {
+                mainVideo.el.currentTime = t;
+                // seek完了を待つ簡易処理
+                await new Promise(r => setTimeout(r, 100)); 
+                
+                tmpCtx.drawImage(mainVideo.el, 0, 0, tmpCanvas.width, tmpCanvas.height);
+                const dataUrl = tmpCanvas.toDataURL('image/jpeg');
+                
+                const results = await detector(dataUrl, { threshold: 0.8 });
+                // 'person'（人）などの物体を検出
+                if(results.length > 0) {
+                    // 最も確信度が高い、または大きなオブジェクトの中央を取得
+                    const box = results[0].box; 
+                    const centerX = box.xmin + (box.xmax - box.xmin) / 2;
+                    const centerY = box.ymin + (box.ymax - box.ymin) / 2;
+                    
+                    // キャンバスのスケールに合わせる
+                    const scaleX = canvas.width / tmpCanvas.width;
+                    const scaleY = canvas.height / tmpCanvas.height;
+                    
+                    targetItem.keyframes.push({
+                        time: t - targetItem.start,
+                        x: centerX * scaleX,
+                        y: centerY * scaleY,
+                        scale: 1.0,
+                        opacity: 1.0
+                    });
+                }
+            }
+            
+            mainVideo.el.currentTime = origTime;
+            ui.statusMsg.innerText = "✅ トラッキング完了！";
+            setTimeout(() => ui.statusMsg.classList.add('hidden'), 3000);
+            updateTimeline();
+            
+        } catch(e) {
+            console.error(e);
+            alert("AI解析中にエラーが発生しました。");
+            ui.statusMsg.classList.add('hidden');
+        }
+    });
+
+    // --- MP4 Export ---
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+        if(isExporting) return;
+        isExporting = true;
+        
+        const btn = document.getElementById('exportBtn');
+        btn.innerText = "録画出力中... (触らないでください)";
+        btn.classList.replace('bg-[#8957e5]', 'bg-gray-600');
+        ui.statusMsg.innerText = "🎥 書き出し中...";
+        ui.statusMsg.classList.remove('hidden');
+
+        // 音声ミックス用Context
+        if(!audioCtxExport) audioCtxExport = new (window.AudioContext || window.webkitAudioContext)();
+        const dest = audioCtxExport.createMediaStreamDestination();
+        
+        project.items.forEach(item => {
+            if((item.type === 'video' || item.type === 'audio') && item.el) {
+                try {
+                    const source = audioCtxExport.createMediaElementSource(item.el);
+                    source.connect(dest);
+                    source.connect(audioCtxExport.destination); // モニター用
+                } catch(e) {} // 既に接続済みなら無視
+            }
+        });
+
+        const canvasStream = canvas.captureStream(30);
+        const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+        
+        const mime = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        
+        const rec = new MediaRecorder(combinedStream, mime ? {mimeType: mime} : undefined);
+        const chunks = [];
+        rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+        
+        rec.onstop = () => {
+            const blob = new Blob(chunks, { type: mime });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `yujitsu_studio_export.${ext}`;
+            a.click();
+            
+            isExporting = false;
+            btn.innerText = "🎬 MP4書き出し";
+            btn.classList.replace('bg-gray-600', 'bg-[#8957e5]');
+            ui.statusMsg.classList.add('hidden');
+        };
+
+        // 録画のために頭から再生
+        currentTime = 0;
+        togglePlay(true);
+        rec.start(100);
+
+        // ループ内で終了判定
+        const checkEnd = setInterval(() => {
+            if(currentTime >= project.duration) {
+                clearInterval(checkEnd);
+                if(rec.state !== 'inactive') rec.stop();
+            }
+        }, 500);
+    });
+
+    // --- Save / Load ---
+    document.getElementById('saveBtn').addEventListener('click', () => {
+        const safeData = project.items.map(i => ({...i, el: null, src: null}));
+        localStorage.setItem('YJEditorState', JSON.stringify({ duration: project.duration, items: safeData }));
+        alert('配置データとキーフレームを保存しました。');
+    });
+
+    document.getElementById('loadBtn').addEventListener('click', () => {
+        const data = localStorage.getItem('YJEditorState');
+        if(data) {
+            const parsed = JSON.parse(data);
+            project.duration = parsed.duration;
+            project.items = parsed.items;
+            updateTimeline();
+            alert('復元しました！(※セキュリティ上、ローカル動画/画像ファイルは再度「素材追加」から読み込み直してください)');
+        }
+    });
+
+</script>
+</body>
+</html>
