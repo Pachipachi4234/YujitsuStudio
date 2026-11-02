@@ -21,8 +21,11 @@
         .item-selected { box-shadow: 0 0 0 2px #58a6ff, inset 0 0 0 1px rgba(0,0,0,0.8) !important; z-index: 10; }
         
         .kf-marker { position: absolute; top: 0; bottom: 0; width: 8px; background: rgba(255,255,255,0.8); border-left: 1px solid #000; border-right: 1px solid #000; transform: skewX(-20deg); pointer-events: none;}
+        
+        /* 再生ヘッド（赤線）とドラッグ用の丸い頭 */
         #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff0000; z-index: 50; pointer-events: none; }
-        #playhead::before { content: ''; position: absolute; top: -10px; left: -5px; width: 12px; height: 12px; background: #ff0000; border-radius: 50%; }
+        #playheadHandle { position: absolute; top: -10px; left: -7px; width: 16px; height: 16px; background: #ff0000; border: 2px solid white; border-radius: 50%; cursor: grab; z-index: 60; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
+        #playheadHandle:active { cursor: grabbing; scale: 1.2; }
 
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #010409; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
@@ -143,7 +146,11 @@
                         <div class="timeline-track" id="track-pip"></div>
                         <div class="timeline-track" id="track-text"></div>
                         <div class="timeline-track" id="track-audio"></div>
-                        <div id="playhead"></div>
+                        
+                        <!-- 赤い線 ＋ 丸いドラッグハンドル -->
+                        <div id="playhead">
+                            <div id="playheadHandle"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -161,6 +168,7 @@
     const ui = {
         playBtn: document.getElementById('playBtn'), seekSlider: document.getElementById('seekSlider'),
         timeDisplay: document.getElementById('timeDisplay'), playhead: document.getElementById('playhead'),
+        playheadHandle: document.getElementById('playheadHandle'),
         propsPanel: document.getElementById('propertiesPanel'), statusMsg: document.getElementById('statusMsg'),
         tlContent: document.getElementById('tlContent'), tlTracks: document.getElementById('tlTracks'),
         zoomSlider: document.getElementById('zoomSlider')
@@ -198,23 +206,15 @@
         const videoItem = project.items.find(i => i.id === selectedItemId);
         if(videoItem.type !== 'video' || !videoItem.el) return;
 
-        videoItem.muted = true;
-        videoItem.el.muted = true;
+        videoItem.muted = true; videoItem.el.muted = true;
 
         const audioItem = JSON.parse(JSON.stringify(videoItem));
-        audioItem.id = generateId();
-        audioItem.type = 'audio';
-        audioItem.muted = false;
+        audioItem.id = generateId(); audioItem.type = 'audio'; audioItem.muted = false;
 
         const audioEl = document.createElement('audio');
-        audioEl.src = videoItem.src;
-        audioEl.crossOrigin = "anonymous";
-        audioItem.el = audioEl;
+        audioEl.src = videoItem.src; audioEl.crossOrigin = "anonymous"; audioItem.el = audioEl;
 
-        project.items.push(audioItem);
-        selectItem(audioItem.id);
-        updateTimeline();
-
+        project.items.push(audioItem); selectItem(audioItem.id); updateTimeline();
         ui.statusMsg.innerText = "🎵 音声を分離しました";
         ui.statusMsg.classList.remove('hidden'); setTimeout(() => ui.statusMsg.classList.add('hidden'), 1500);
     });
@@ -234,8 +234,7 @@
 
         if(item.el) {
             const el = document.createElement(item.el.tagName);
-            el.src = item.src; el.crossOrigin = "anonymous";
-            el.muted = item.muted;
+            el.src = item.src; el.crossOrigin = "anonymous"; el.muted = item.muted;
             newItem.el = el;
         }
         
@@ -257,7 +256,6 @@
         return { x: prev.x + (next.x - prev.x) * ratio, y: prev.y + (next.y - prev.y) * ratio, scale: prev.scale + (next.scale - prev.scale) * ratio, opacity: prev.opacity + (next.opacity - prev.opacity) * ratio };
     }
 
-    // ★★★ 描画関数 (点滅防止の完全修正版) ★★★
     function render() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const drawOrder = ['video', 'pip', 'text'];
@@ -279,7 +277,6 @@
                     if (item.el && (item.el.readyState >= 2 || item.el.complete)) {
                         if (item.el.tagName === 'VIDEO') {
                             item.el.muted = item.muted;
-                            // 💡 再生中ではなく、手動シーク時（ずれが大きい時）だけ時刻を同期して点滅を防ぐ
                             if (!isPlaying && Math.abs(item.el.currentTime - localTime) > 0.15) {
                                 item.el.currentTime = localTime;
                             }
@@ -344,7 +341,7 @@
         project.items.forEach(item => {
             if (item.el && item.el.tagName !== 'IMG') {
                 if (isPlaying && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
-                    item.el.currentTime = currentTime - item.start; // 再生開始時だけ同期
+                    item.el.currentTime = currentTime - item.start;
                     item.el.play().catch(()=>{});
                 } else { item.el.pause(); }
             }
@@ -353,11 +350,19 @@
 
     ui.playBtn.addEventListener('click', () => togglePlay());
     
+    // --- 🖱️ タイムライン操作（ドラッグ移動・リサイズ ＆ ★赤線ドラッグシーク） ---
     let tlDraggingItem = null;
     let tlDragAction = null;
     let tlDragStartX = 0;
     let tlOriginalStart = 0;
     let tlOriginalDuration = 0;
+    let isPlayheadDragging = false; // ★赤線ドラッグフラグ
+
+    // 赤線の丸頭（ハンドル）を掴んだときの処理
+    ui.playheadHandle.addEventListener('mousedown', (e) => {
+        isPlayheadDragging = true;
+        e.stopPropagation(); // 他のクリック判定をキャンセル
+    });
 
     ui.tlTracks.addEventListener('mousedown', (e) => {
         const itemEl = e.target.closest('.timeline-item');
@@ -380,16 +385,19 @@
             return;
         }
 
-        const rect = ui.tlTracks.getBoundingClientRect();
-        currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * project.duration;
-        project.items.forEach(item => {
-            if (item.el && item.el.tagName !== 'IMG' && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
-                item.el.currentTime = currentTime - item.start;
-            }
-        });
+        // 隙間クリックでシーク
+        seekByMouse(e);
     });
 
+    // マウス移動（アイテムのドラッグ / ★赤線のドラッグ）
     window.addEventListener('mousemove', (e) => {
+        // ★ 赤線をドラッグ中の処理
+        if (isPlayheadDragging) {
+            seekByMouse(e);
+            return;
+        }
+
+        // アイテムの移動・伸縮処理
         if (!tlDraggingItem) return;
         const rect = ui.tlTracks.getBoundingClientRect();
         const pxToTime = project.duration / rect.width;
@@ -419,7 +427,23 @@
         document.getElementById('propDuration').value = tlDraggingItem.duration.toFixed(2);
     });
 
-    window.addEventListener('mouseup', () => { tlDraggingItem = null; tlDragAction = null; });
+    window.addEventListener('mouseup', () => { 
+        tlDraggingItem = null; 
+        tlDragAction = null; 
+        isPlayheadDragging = false; 
+    });
+
+    // マウス位置に合わせてシーク（再生位置の移動）を行う共通関数
+    function seekByMouse(e) {
+        const rect = ui.tlTracks.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        currentTime = Math.max(0, Math.min(1, clickX / rect.width)) * project.duration;
+        project.items.forEach(item => {
+            if (item.el && item.el.tagName !== 'IMG' && currentTime >= item.start && currentTime <= (item.start + item.duration)) {
+                item.el.currentTime = currentTime - item.start;
+            }
+        });
+    }
 
     ui.zoomSlider.addEventListener('input', (e) => { ui.tlContent.style.width = `${e.target.value * 100}%`; });
     document.getElementById('addTextBtn').addEventListener('click', () => addItem('text', null, null));
