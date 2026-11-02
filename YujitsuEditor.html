@@ -22,7 +22,6 @@
         
         .kf-marker { position: absolute; top: 0; bottom: 0; width: 8px; background: rgba(255,255,255,0.8); border-left: 1px solid #000; border-right: 1px solid #000; transform: skewX(-20deg); pointer-events: none;}
         
-        /* 再生ヘッド（赤線）とドラッグ用の丸い頭 */
         #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff0000; z-index: 50; pointer-events: none; }
         #playheadHandle { position: absolute; top: -10px; left: -7px; width: 16px; height: 16px; background: #ff0000; border: 2px solid white; border-radius: 50%; cursor: grab; z-index: 60; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
         #playheadHandle:active { cursor: grabbing; scale: 1.2; }
@@ -73,6 +72,27 @@
             <h2 class="text-sm font-bold text-gray-400 mb-2 border-b border-[#30363d] pb-2">⚙️ 選択アイテムの設定</h2>
             <div id="propertiesPanel" class="text-xs space-y-2 opacity-50 pointer-events-none transition-opacity">
                 <button id="detachAudioBtn" class="hidden w-full mb-2 bg-[#d29922]/20 hover:bg-[#d29922]/40 text-[#e3b341] border border-[#d29922]/50 py-1.5 rounded font-bold transition">🎵 動画から音声を分離</button>
+
+                <!-- 🎨 クロマキー透過＆カラー選択設定エリア -->
+                <div id="chromaArea" class="bg-[#010409] p-2 rounded border border-[#30363d] space-y-2 hidden">
+                    <div class="flex items-center justify-between">
+                        <label class="font-bold text-[#3fb950] flex items-center gap-1">🎨 クロマキー透過</label>
+                        <input type="checkbox" id="propChromaEnable" class="cursor-pointer">
+                    </div>
+                    <div id="chromaControls" class="space-y-2 hidden pt-1 border-t border-[#30363d]">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-400">くり抜く色:</span>
+                            <input type="color" id="propChromaColor" value="#00ff00" class="input-ui !h-7 !w-16 !p-0 cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                                <span>色抜き感度</span>
+                                <span id="chromaVal">100</span>
+                            </div>
+                            <input type="range" id="propChromaTol" min="10" max="250" value="100" class="w-full cursor-pointer">
+                        </div>
+                    </div>
+                </div>
 
                 <div id="propTextArea" class="hidden">
                     <textarea id="propText" class="input-ui h-12"></textarea>
@@ -147,7 +167,6 @@
                         <div class="timeline-track" id="track-text"></div>
                         <div class="timeline-track" id="track-audio"></div>
                         
-                        <!-- 赤い線 ＋ 丸いドラッグハンドル -->
                         <div id="playhead">
                             <div id="playheadHandle"></div>
                         </div>
@@ -157,6 +176,8 @@
         </div>
     </div>
 
+    <canvas id="offscreenCanvas" class="hidden"></canvas>
+
 <script type="module">
     const project = { duration: 30, items: [] };
     let currentTime = 0; let isPlaying = false; let selectedItemId = null;
@@ -165,6 +186,9 @@
     const canvas = document.getElementById('previewCanvas'); const ctx = canvas.getContext('2d');
     canvas.width = 1920; canvas.height = 1080;
     
+    const offCanvas = document.getElementById('offscreenCanvas');
+    const offCtx = offCanvas.getContext('2d');
+
     const ui = {
         playBtn: document.getElementById('playBtn'), seekSlider: document.getElementById('seekSlider'),
         timeDisplay: document.getElementById('timeDisplay'), playhead: document.getElementById('playhead'),
@@ -176,11 +200,22 @@
 
     function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
+    // HEXカラー (#00ff00等) を RGB配列 [0, 255, 0] に変換
+    function hexToRgb(hex) {
+        const c = hex.replace('#', '');
+        return [
+            parseInt(c.substring(0, 2), 16),
+            parseInt(c.substring(2, 4), 16),
+            parseInt(c.substring(4, 6), 16)
+        ];
+    }
+
     function addItem(type, src, fileObj, forceDuration = 5) {
         const item = {
             id: generateId(), type: type, src: src, start: currentTime, duration: forceDuration, 
             text: type === 'text' ? '新規テキスト' : '', color: '#ffffff', size: 100, el: null,
             anim: 'none', muted: false,
+            chroma: false, chromaColor: '#00ff00', chromaTol: 100, // ★くり抜く色の指定プロパティ
             keyframes: [{ time: 0, x: 960, y: 540, scale: 1.0, opacity: 1.0 }] 
         };
 
@@ -256,6 +291,32 @@
         return { x: prev.x + (next.x - prev.x) * ratio, y: prev.y + (next.y - prev.y) * ratio, scale: prev.scale + (next.scale - prev.scale) * ratio, opacity: prev.opacity + (next.opacity - prev.opacity) * ratio };
     }
 
+    // ★ 自由カラー対応・高精度背景消去アルゴリズム
+    function drawChromaElement(el, w, h, targetColorHex, tol) {
+        offCanvas.width = w; offCanvas.height = h;
+        offCtx.drawImage(el, 0, 0, w, h);
+        const imgData = offCtx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        const targetRgb = hexToRgb(targetColorHex);
+        
+        // 色空間上のユーグリッド距離で類似色を正確に検出して判定
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i+1], b = data[i+2];
+            const dist = Math.sqrt(
+                Math.pow(r - targetRgb[0], 2) + 
+                Math.pow(g - targetRgb[1], 2) + 
+                Math.pow(b - targetRgb[2], 2)
+            );
+            
+            // 指定色との差（距離）が許容値(tol)以下なら透過させる
+            if (dist < tol) {
+                data[i+3] = 0;
+            }
+        }
+        offCtx.putImageData(imgData, 0, 0);
+        return offCanvas;
+    }
+
     function render() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const drawOrder = ['video', 'pip', 'text'];
@@ -281,10 +342,20 @@
                                 item.el.currentTime = localTime;
                             }
                         }
-                        if(type === 'video') { ctx.drawImage(item.el, 0, 0, canvas.width, canvas.height); } 
+                        
+                        const vw = item.el.videoWidth || item.el.naturalWidth || 400;
+                        const vh = item.el.videoHeight || item.el.naturalHeight || 225;
+                        
+                        // 指定色と感度で背景消去
+                        const sourceEl = item.chroma ? drawChromaElement(item.el, vw, vh, item.chromaColor, item.chromaTol) : item.el;
+
+                        if(type === 'video') { 
+                            ctx.drawImage(sourceEl, 0, 0, canvas.width, canvas.height); 
+                        } 
                         else {
-                            const w = (item.el.videoWidth || item.el.naturalWidth || 400) * props.scale; const h = (item.el.videoHeight || item.el.naturalHeight || 225) * props.scale;
-                            ctx.translate(props.x, props.y); ctx.drawImage(item.el, -(w*0.3)/2, -(h*0.3)/2, w*0.3, h*0.3);
+                            const w = vw * props.scale; const h = vh * props.scale;
+                            ctx.translate(props.x, props.y); 
+                            ctx.drawImage(sourceEl, -(w*0.3)/2, -(h*0.3)/2, w*0.3, h*0.3);
                         }
                     }
                 } else if (type === 'text') {
@@ -350,18 +421,17 @@
 
     ui.playBtn.addEventListener('click', () => togglePlay());
     
-    // --- 🖱️ タイムライン操作（ドラッグ移動・リサイズ ＆ ★赤線ドラッグシーク） ---
+    // --- 🖱️ タイムライン操作 ---
     let tlDraggingItem = null;
     let tlDragAction = null;
     let tlDragStartX = 0;
     let tlOriginalStart = 0;
     let tlOriginalDuration = 0;
-    let isPlayheadDragging = false; // ★赤線ドラッグフラグ
+    let isPlayheadDragging = false;
 
-    // 赤線の丸頭（ハンドル）を掴んだときの処理
     ui.playheadHandle.addEventListener('mousedown', (e) => {
         isPlayheadDragging = true;
-        e.stopPropagation(); // 他のクリック判定をキャンセル
+        e.stopPropagation();
     });
 
     ui.tlTracks.addEventListener('mousedown', (e) => {
@@ -384,20 +454,15 @@
             e.stopPropagation();
             return;
         }
-
-        // 隙間クリックでシーク
         seekByMouse(e);
     });
 
-    // マウス移動（アイテムのドラッグ / ★赤線のドラッグ）
     window.addEventListener('mousemove', (e) => {
-        // ★ 赤線をドラッグ中の処理
         if (isPlayheadDragging) {
             seekByMouse(e);
             return;
         }
 
-        // アイテムの移動・伸縮処理
         if (!tlDraggingItem) return;
         const rect = ui.tlTracks.getBoundingClientRect();
         const pxToTime = project.duration / rect.width;
@@ -433,7 +498,6 @@
         isPlayheadDragging = false; 
     });
 
-    // マウス位置に合わせてシーク（再生位置の移動）を行う共通関数
     function seekByMouse(e) {
         const rect = ui.tlTracks.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
@@ -464,7 +528,10 @@
                 const handleR = document.createElement('div'); handleR.className = 'resize-handle-r'; el.appendChild(handleR);
                 
                 const textSpan = document.createElement('span'); textSpan.style.pointerEvents = 'none';
-                textSpan.innerText = item.type === 'text' ? item.text : (item.type === 'video' && item.muted ? '🔇 映像のみ' : `${item.type.toUpperCase()}`);
+                let label = item.type === 'text' ? item.text : `${item.type.toUpperCase()}`;
+                if(item.chroma) label += ' 🎨';
+                if(item.muted) label += ' 🔇';
+                textSpan.innerText = label;
                 el.appendChild(textSpan);
 
                 if(item.keyframes) {
@@ -487,6 +554,17 @@
             if (item.type === 'video' && !item.muted) detachBtn.classList.remove('hidden');
             else detachBtn.classList.add('hidden');
 
+            const chromaArea = document.getElementById('chromaArea');
+            const chromaControls = document.getElementById('chromaControls');
+            if (item.type === 'video' || item.type === 'pip') {
+                chromaArea.classList.remove('hidden');
+                document.getElementById('propChromaEnable').checked = item.chroma || false;
+                document.getElementById('propChromaColor').value = item.chromaColor || '#00ff00';
+                document.getElementById('propChromaTol').value = item.chromaTol || 100;
+                document.getElementById('chromaVal').innerText = item.chromaTol || 100;
+                if(item.chroma) chromaControls.classList.remove('hidden'); else chromaControls.classList.add('hidden');
+            } else { chromaArea.classList.add('hidden'); }
+
             if(item.type === 'text') {
                 document.getElementById('propTextArea').classList.remove('hidden'); document.getElementById('propText').value = item.text;
                 document.getElementById('propColor').value = item.color; document.getElementById('propSize').value = item.size;
@@ -494,8 +572,32 @@
         } else { 
             ui.propsPanel.classList.add('opacity-50', 'pointer-events-none'); 
             document.getElementById('detachAudioBtn').classList.add('hidden');
+            document.getElementById('chromaArea').classList.add('hidden');
         }
     }
+
+    // クロマキー・カラー変更イベント
+    document.getElementById('propChromaEnable').addEventListener('change', (e) => {
+        if(!selectedItemId) return;
+        const item = project.items.find(i => i.id === selectedItemId);
+        item.chroma = e.target.checked;
+        if(item.chroma) document.getElementById('chromaControls').classList.remove('hidden');
+        else document.getElementById('chromaControls').classList.add('hidden');
+        updateTimeline();
+    });
+
+    document.getElementById('propChromaColor').addEventListener('input', (e) => {
+        if(!selectedItemId) return;
+        const item = project.items.find(i => i.id === selectedItemId);
+        item.chromaColor = e.target.value;
+    });
+
+    document.getElementById('propChromaTol').addEventListener('input', (e) => {
+        if(!selectedItemId) return;
+        const item = project.items.find(i => i.id === selectedItemId);
+        item.chromaTol = parseInt(e.target.value);
+        document.getElementById('chromaVal').innerText = item.chromaTol;
+    });
 
     ['propStart', 'propDuration', 'propText', 'propColor', 'propSize', 'propAnim'].forEach(id => {
         document.getElementById(id).addEventListener('input', (e) => {
