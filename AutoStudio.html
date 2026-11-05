@@ -222,7 +222,7 @@
     ui.mediaPlayer.addEventListener('timeupdate', () => { if(!isExporting) ui.seekSlider.value = ui.mediaPlayer.currentTime; });
     ui.seekSlider.addEventListener('input', (e) => { ui.mediaPlayer.currentTime = parseFloat(e.target.value); });
 
-    // --- AI Transcription Logic ---
+    // ★ AI Transcription Logic (新規ブロックが確実に生成されるように修復)
     ui.startBtn.addEventListener('click', async () => {
         if (!ui.mediaInput.files.length) { alert('ファイルを選択してください！'); return; }
         
@@ -247,43 +247,22 @@
 
             let chunks = result.chunks || [];
             
-            // ★ 長文・連続文字列の分割ロジック修正
+            // 全てのチャンクを安全に1つずつの新規ブロックとして展開
             for (let chunk of chunks) {
-                const rawText = chunk.text.trim();
-                const startT = chunk.timestamp[0];
-                const endT = chunk.timestamp[1];
-
-                // 句読点（。！？）や改行でさらに分割
-                const subSentences = rawText.split(/(?<=[。！？\n])/g).map(s => s.trim()).filter(s => s.length > 0);
+                const text = chunk.text.trim();
+                if (!text) continue;
                 
-                if (subSentences.length <= 1) {
-                    blocks.push({
-                        id: blockIdCounter++,
-                        start: startT,
-                        end: endT,
-                        text: rawText,
-                        override: false,
-                        style: {...getDefaultStyle()}
-                    });
-                } else {
-                    const durationPerChar = (endT - startT) / Math.max(1, rawText.length);
-                    let currStart = startT;
-                    for (let sub of subSentences) {
-                        const subDuration = sub.length * durationPerChar;
-                        blocks.push({
-                            id: blockIdCounter++,
-                            start: currStart,
-                            end: currStart + subDuration,
-                            text: sub,
-                            override: false,
-                            style: {...getDefaultStyle()}
-                        });
-                        currStart += subDuration;
-                    }
-                }
+                blocks.push({
+                    id: blockIdCounter++,
+                    start: chunk.timestamp[0] || 0,
+                    end: chunk.timestamp[1] || ((chunk.timestamp[0] || 0) + 2.0),
+                    text: text,
+                    override: false,
+                    style: {...getDefaultStyle()}
+                });
             }
 
-            ui.aiStatus.innerText = "✅ 解析完了！";
+            ui.aiStatus.innerText = "✅ 解析完了！ " + blocks.length + "個のブロックを生成しました。";
             setTimeout(() => ui.aiStatus.classList.add('hidden'), 3000);
             renderBlocksUI();
         } catch (e) {
@@ -296,6 +275,11 @@
     // --- Block UI Rendering ---
     function renderBlocksUI() {
         ui.blocksContainer.innerHTML = '';
+        if (blocks.length === 0) {
+            ui.blocksContainer.innerHTML = `<div class="text-sm text-gray-500 text-center py-10">AI解析を実行するか「＋ 新規ブロック」を押すと、ここにテロップブロックが表示されます。</div>`;
+            return;
+        }
+
         blocks.forEach((block, index) => {
             const el = document.createElement('div');
             el.className = "bg-[#010409] border border-[#30363d] rounded-lg p-3";
@@ -349,7 +333,14 @@
 
     ui.addBlockBtn.addEventListener('click', () => {
         const lastEnd = blocks.length > 0 ? blocks[blocks.length-1].end : 0;
-        blocks.push({ id: blockIdCounter++, start: lastEnd + 0.5, end: lastEnd + 3.5, text: "新規テロップ", override: false, style: {...getDefaultStyle()} });
+        blocks.push({ 
+            id: blockIdCounter++, 
+            start: lastEnd + 0.5, 
+            end: lastEnd + 3.5, 
+            text: "新規テロップ", 
+            override: false, 
+            style: {...getDefaultStyle()} 
+        });
         renderBlocksUI();
     });
 
@@ -378,7 +369,6 @@
 
             ctx.globalAlpha = alpha;
             
-            // フォントスタイルの構築（斜体・太字）
             const fontItalic = style.italic ? 'italic ' : '';
             const fontWeight = style.bold ? 'bold ' : 'normal ';
             ctx.font = `${fontItalic}${fontWeight}${style.size}px ${style.font}`;
@@ -397,7 +387,6 @@
             for (let i = 0; i < lines.length; i++) {
                 const y = startY + (i * lineHeight);
                 
-                // 下線・取消線のパスを引く補助関数
                 const drawDecorations = (action) => {
                     if(!style.underline && !style.strikethrough) return;
                     const width = ctx.measureText(lines[i]).width;
@@ -424,10 +413,8 @@
                     }
                 };
 
-                // 影の設定 (最初のレイヤーにだけ適用)
                 if (style.shadowBlur > 0) { ctx.shadowColor = style.shadowColor; ctx.shadowBlur = style.shadowBlur; }
 
-                // 1. 外側の縁取り描画
                 if (style.outerStrokeWidth > 0) {
                     ctx.strokeStyle = style.outerStrokeColor;
                     ctx.lineWidth = style.strokeWidth + (style.outerStrokeWidth * 2);
@@ -436,7 +423,6 @@
                     ctx.shadowBlur = 0;
                 }
 
-                // 2. 内側の縁取り描画
                 if (style.strokeWidth > 0) {
                     ctx.strokeStyle = style.strokeColor;
                     ctx.lineWidth = style.strokeWidth;
@@ -445,7 +431,6 @@
                     ctx.shadowBlur = 0;
                 }
 
-                // 3. テキストの塗りつぶし
                 ctx.fillStyle = style.color;
                 ctx.shadowBlur = 0;
                 ctx.fillText(lines[i], baseX, y);
