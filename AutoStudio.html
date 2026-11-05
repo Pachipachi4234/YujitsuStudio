@@ -445,7 +445,7 @@
         if(!ui.mediaPlayer.src) return;
 
         isExporting = true;
-        ui.exportBtn.innerText = "書き出し中... (再生を止めないでください)";
+        ui.exportBtn.innerText = "書き出し中...  (再生を止めないでください)";
         ui.exportBtn.classList.replace('bg-[#8957e5]', 'bg-gray-600');
         
         const canvasStream = ui.canvas.captureStream(30);
