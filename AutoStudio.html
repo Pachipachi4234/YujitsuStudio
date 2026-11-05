@@ -219,7 +219,56 @@
     ui.mediaPlayer.addEventListener('timeupdate', () => { if(!isExporting) ui.seekSlider.value = ui.mediaPlayer.currentTime; });
     ui.seekSlider.addEventListener('input', (e) => { ui.mediaPlayer.currentTime = parseFloat(e.target.value); });
 
-    // ★ 全ての音声データを繰り返しループで漏れなく抽出する修正ロジック
+    // 🎙️ 音声データから無音区間（0.3秒以上の無音）を波形解析して切り分ける関数
+    function detectSpeechSegments(audioData, sampleRate = 16000, silenceThresh = 0.015, minSilenceDuration = 0.3) {
+        const minSilenceSamples = Math.floor(sampleRate * minSilenceDuration);
+        const segments = [];
+        
+        let inSpeech = false;
+        let speechStart = 0;
+        let silenceCounter = 0;
+
+        for (let i = 0; i < audioData.length; i++) {
+            const amplitude = Math.abs(audioData[i]);
+            
+            if (amplitude > silenceThresh) {
+                if (!inSpeech) {
+                    inSpeech = true;
+                    speechStart = i;
+                }
+                silenceCounter = 0;
+            } else {
+                if (inSpeech) {
+                    silenceCounter++;
+                    if (silenceCounter >= minSilenceSamples) {
+                        inSpeech = false;
+                        const speechEnd = i - silenceCounter;
+                        // 0.2秒以上の有音区間のみ採用
+                        if ((speechEnd - speechStart) / sampleRate >= 0.2) {
+                            segments.push({
+                                start: speechStart / sampleRate,
+                                end: speechEnd / sampleRate,
+                                data: audioData.slice(speechStart, speechEnd)
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 末尾の処理
+        if (inSpeech && (audioData.length - speechStart) / sampleRate >= 0.2) {
+            segments.push({
+                start: speechStart / sampleRate,
+                end: audioData.length / sampleRate,
+                data: audioData.slice(speechStart)
+            });
+        }
+
+        return segments;
+    }
+
+    // AI文字起こし実行 (無音検出→順次ループ解析)
     ui.startBtn.addEventListener('click', async () => {
         if (!ui.mediaInput.files.length) { alert('ファイルを選択してください！'); return; }
         
@@ -232,52 +281,39 @@
             ui.aiStatus.innerText = "⏳ AIモデルを準備中...";
             const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
 
-            ui.aiStatus.innerText = "⏳ 音声データを抽出中...";
+            ui.aiStatus.innerText = "⏳ 音声データを抽出し波形を解析中...";
             const file = ui.mediaInput.files[0];
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             const audioData = audioBuffer.getChannelData(0);
 
-            ui.aiStatus.innerText = "✨ AI文字起こしを実行中...";
-            const result = await transcriber(audioData, { chunk_length_s: 30, stride_length_s: 5, language: 'japanese', task: 'transcribe', return_timestamps: true });
+            // 1. まずWeb Audio APIで無音区間（0.3秒以上の無音）を探して音声をセグメント分割
+            ui.aiStatus.innerText = "🔍 無音区間を検出し、セリフごとに分割中...";
+            let segments = detectSpeechSegments(audioData, 16000, 0.015, 0.3);
 
-            let chunks = result.chunks || [];
-            const mediaDuration = ui.mediaPlayer.duration || 999;
-            
-            // 全チャンクを繰り返し取得・配列化
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const text = chunk.text.trim();
-                if (!text) continue;
-                
-                let startT = (chunk.timestamp && chunk.timestamp[0] !== null) ? chunk.timestamp[0] : 0;
-                let endT = (chunk.timestamp && chunk.timestamp[1] !== null) ? chunk.timestamp[1] : 0;
-
-                // 終了タイムラグがある場合は次チャンク開始まで維持
-                if (!endT || endT <= startT) {
-                    if (i < chunks.length - 1 && chunks[i+1].timestamp && chunks[i+1].timestamp[0]) {
-                        endT = chunks[i+1].timestamp[0];
-                    } else {
-                        endT = Math.max(startT + 3.0, mediaDuration);
-                    }
-                }
-
-                blocks.push({
-                    id: blockIdCounter++,
-                    start: startT,
-                    end: endT,
-                    text: text,
-                    override: false,
-                    style: {...getDefaultStyle()}
-                });
+            // 万が一、無音が検出されなかった場合は全体を1個として処理
+            if (segments.length === 0) {
+                segments = [{ start: 0, end: audioBuffer.duration, data: audioData }];
             }
 
-            // 最後のブロックが表示時間の終わりまで残るよう調整
-            if (blocks.length > 0 && mediaDuration < 990) {
-                const last = blocks[blocks.length - 1];
-                if (last.end < mediaDuration) {
-                    last.end = mediaDuration;
+            // 2. 分割した各セグメントをループで1つずつWhisperに渡して認識
+            for (let idx = 0; idx < segments.length; idx++) {
+                const seg = segments[idx];
+                ui.aiStatus.innerText = `✨ AI文字起こし中... (${idx + 1} / ${segments.length} 区間)`;
+                
+                const res = await transcriber(seg.data, { language: 'japanese', task: 'transcribe' });
+                const recognizedText = res.text.trim();
+
+                if (recognizedText) {
+                    blocks.push({
+                        id: blockIdCounter++,
+                        start: seg.start,
+                        end: seg.end,
+                        text: recognizedText,
+                        override: false,
+                        style: {...getDefaultStyle()}
+                    });
                 }
             }
 
