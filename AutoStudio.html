@@ -2,160 +2,513 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>YuJitsu Studio - AutoStudio</title>
+    <title>AutoStudio | AIテロップ動画ジェネレーター</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; user-select: none; }
-        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
-        .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.25rem; padding: 0.5rem; width: 100%; font-size: 0.875rem;}
+        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; }
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.75rem; padding: 1.5rem; }
+        .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.5rem; padding: 0.5rem; width: 100%; }
         .input-ui:focus { outline: none; border-color: #58a6ff; }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #010409; }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
+        input[type="color"] { padding: 0; height: 2rem; cursor: pointer; }
+        input[type="checkbox"] { cursor: pointer; }
     </style>
 </head>
-<body class="h-screen flex flex-col p-4 gap-4 overflow-hidden">
-
-    <header class="panel flex items-center justify-between px-6 py-3 flex-none border-b-2 border-b-[#79c0ff]">
-        <div class="flex items-center gap-3">
-            <div class="bg-[#79c0ff] text-black font-extrabold px-3 py-1 rounded-lg text-xl">A</div>
-            <h1 class="text-xl font-bold text-white">AutoStudio <span class="text-xs font-normal text-[#79c0ff] ml-2 border border-[#79c0ff] px-2 py-0.5 rounded">自動台本＆テロップ生成</span></h1>
-        </div>
+<body class="min-h-screen p-6 space-y-6 max-w-6xl mx-auto">
+    <header class="border-b border-[#30363d] pb-4">
+        <h1 class="text-3xl font-bold text-[#58a6ff]">AutoStudio <span class="text-sm font-normal text-gray-400">by YuJitsu</span></h1>
+        <p class="text-[#8b949e] mt-2">AIで自動文字起こしを行い、動画にそのままスタイル付きテロップと音声を合成してMP4動画として書き出します。</p>
     </header>
 
-    <div class="flex flex-1 gap-4 min-h-0">
-        
-        <!-- 左側：台本入力＆一括生成エリア -->
-        <div class="panel w-1/3 flex flex-col p-4 gap-3">
-            <h2 class="text-sm font-bold text-gray-400 border-b border-[#30363d] pb-2">📝 台本一括入力</h2>
-            <p class="text-xs text-gray-500">ここに長文を入力すると、句読点（。！？）や改行ごとに自動でテロップブロックに分解されます。</p>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左カラム：設定とAI実行 -->
+        <div class="space-y-6 lg:col-span-1">
             
-            <textarea id="scriptInput" class="input-ui flex-1 resize-none p-3 font-mono text-sm" placeholder="皆さんこんにちは。ゆっくり魔理沙だぜ。今日はプライムシューターをスペースシューターでボコしていくよ"></textarea>
-            
-            <button id="generateBtn" class="w-full bg-[#238636] hover:bg-[#2ea043] text-white font-extrabold py-2.5 rounded text-sm transition">
-                ⚡ 台本からテロップを一括生成
-            </button>
-        </div>
+            <!-- ① デフォルトスタイル設定 -->
+            <div class="panel p-4">
+                <h2 class="text-lg font-bold mb-4 text-[#79c0ff]">① デフォルト・テロップ設定</h2>
+                
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label class="block mb-1 text-xs">フォント種類</label>
+                        <select id="def-font" class="input-ui !py-1 text-xs">
+                            <option value="sans-serif">ゴシック (Sans-serif)</option>
+                            <option value="serif">明朝体 (Serif)</option>
+                            <option value="monospace">等幅 (Monospace)</option>
+                            <option value="'Impact'">インパクト</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs">アニメーション</label>
+                        <select id="def-anim" class="input-ui !py-1 text-xs">
+                            <option value="none">なし (パッと表示)</option>
+                            <option value="fade">フェードイン</option>
+                            <option value="slide-up">下からスライド</option>
+                            <option value="typewriter">タイピング風</option>
+                            <option value="zoom-in">ズームイン</option>
+                        </select>
+                    </div>
+                </div>
 
-        <!-- 右側：プレビュー＆テロップブロック一覧 -->
-        <div class="panel flex-1 flex flex-col p-4 gap-4 min-h-0">
-            <!-- プレビュー表示 -->
-            <div class="bg-black rounded border border-[#30363d] h-48 relative flex items-center justify-center overflow-hidden flex-none">
-                <div id="previewBox" class="text-2xl font-black text-yellow-300 drop-shadow-[0_2px_2px_rgba(0,0,0,1)] text-center px-4">
-                    プレビュー画面
+                <div class="grid grid-cols-4 gap-2 mb-3 text-xs bg-[#010409] p-2 rounded border border-[#30363d]">
+                    <label class="flex items-center gap-1"><input type="checkbox" id="def-bold" checked> 太字</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" id="def-italic"> 斜体</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" id="def-underline"> 下線</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" id="def-strikethrough"> 取消線</label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-x-2 gap-y-3 text-xs">
+                    <div><label class="block mb-1">文字色</label><input type="color" id="def-color" value="#ffffff" class="input-ui"></div>
+                    <div><label class="block mb-1">文字サイズ</label><input type="number" id="def-size" value="60" class="input-ui !py-1" min="10"></div>
+                    
+                    <div><label class="block mb-1">内側の縁色</label><input type="color" id="def-stroke-color" value="#000000" class="input-ui"></div>
+                    <div><label class="block mb-1">内側縁の太さ</label><input type="number" id="def-stroke-width" value="6" class="input-ui !py-1" min="0"></div>
+
+                    <div><label class="block mb-1">外側の縁色</label><input type="color" id="def-outer-stroke-color" value="#ff0000" class="input-ui"></div>
+                    <div><label class="block mb-1">外側縁の太さ</label><input type="number" id="def-outer-stroke-width" value="0" class="input-ui !py-1" min="0"></div>
+
+                    <div><label class="block mb-1">影の色</label><input type="color" id="def-shadow-color" value="#000000" class="input-ui"></div>
+                    <div><label class="block mb-1">影・発光 (Blur)</label><input type="number" id="def-shadow-blur" value="10" class="input-ui !py-1" min="0"></div>
+
+                    <div><label class="block mb-1">表示位置 X (%)</label><input type="number" id="def-x" value="50" class="input-ui !py-1" min="0" max="100"></div>
+                    <div><label class="block mb-1">表示位置 Y (%)</label><input type="number" id="def-y" value="88" class="input-ui !py-1" min="0" max="100"></div>
                 </div>
             </div>
 
-            <!-- ブロック一覧エリア -->
-            <div class="flex items-center justify-between border-b border-[#30363d] pb-2 flex-none">
-                <h2 class="text-sm font-bold text-gray-400">テロップブロック一覧</h2>
-                <button id="addBlockBtn" class="bg-[#21262d] border border-[#30363d] hover:bg-[#30363d] text-xs px-3 py-1 rounded text-gray-300">+ 新規ブロック</button>
+            <!-- ② ファイル読み込み & AI実行 -->
+            <div class="panel p-4">
+                <h2 class="text-lg font-bold mb-4 text-[#79c0ff]">② AI文字起こし実行</h2>
+                <input type="file" id="mediaInput" accept="video/*,audio/*" class="block w-full text-sm text-[#8b949e] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#238636] file:text-white hover:file:bg-[#2ea043] cursor-pointer mb-4">
+                
+                <button id="startBtn" class="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-3 rounded-md font-bold w-full transition disabled:opacity-50">
+                    解析してブロックを生成
+                </button>
+
+                <div id="aiStatus" class="mt-4 text-xs text-[#58a6ff] hidden font-mono whitespace-pre-wrap"></div>
             </div>
 
-            <div id="blocksContainer" class="flex-1 overflow-y-auto space-y-3 pr-1">
-                <!-- ここにテロップブロックが追加されます -->
+            <!-- ③ 書き出し -->
+            <div class="panel p-4">
+                <h2 class="text-lg font-bold mb-4 text-[#79c0ff]">③ 合成動画の書き出し</h2>
+                <p class="text-xs text-gray-400 mb-4">プレビューの映像にテロップと音声を合成し保存します。</p>
+                <button id="exportBtn" class="bg-[#8957e5] hover:bg-[#9d6cfa] text-white px-4 py-3 rounded-md font-bold w-full transition disabled:opacity-50" disabled>
+                    MP4で書き出す
+                </button>
             </div>
+        </div>
+
+        <!-- 右カラム：プレビューとブロックリスト -->
+        <div class="lg:col-span-2 space-y-6 flex flex-col">
+            
+            <!-- プレビュー画面 -->
+            <div class="panel flex-none relative p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-lg font-bold text-[#79c0ff]">プレビュー (合成結果)</h2>
+                </div>
+                
+                <div class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-[#30363d]">
+                    <video id="mediaPlayer" class="absolute inset-0 w-full h-full object-contain hidden" crossorigin="anonymous"></video>
+                    <canvas id="subtitleCanvas" class="absolute inset-0 w-full h-full object-contain"></canvas>
+                </div>
+                <div class="flex items-center gap-2 mt-2 bg-[#010409] p-2 rounded">
+                    <button id="playBtn" class="text-white px-3 py-1 bg-[#21262d] rounded hover:bg-[#30363d]">再生 / 停止</button>
+                    <input type="range" id="seekSlider" class="flex-1" value="0" step="0.1" min="0">
+                </div>
+            </div>
+
+            <!-- ブロックリスト -->
+            <div class="panel flex-1 overflow-y-auto p-4" style="max-height: 500px;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-[#79c0ff]">テロップブロック一覧</h2>
+                    <button id="addBlockBtn" class="text-xs bg-[#21262d] border border-[#30363d] px-3 py-1 rounded hover:bg-[#30363d]">＋ 新規ブロック</button>
+                </div>
+                <div id="blocksContainer" class="space-y-4">
+                    <div class="text-sm text-gray-500 text-center py-10">AI解析を実行すると、ここにテロップブロックが生成されます。</div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-<script>
+<script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
+    env.allowLocalModels = false;
+
+    // --- State & Elements ---
     let blocks = [];
+    let blockIdCounter = 0;
+    let isExporting = false;
+    let rafId = null;
+    let audioCtxExport = null;
+    let mediaSource = null;
+    let mediaDest = null;
 
-    const scriptInput = document.getElementById('scriptInput');
-    const generateBtn = document.getElementById('generateBtn');
-    const blocksContainer = document.getElementById('blocksContainer');
-    const addBlockBtn = document.getElementById('addBlockBtn');
-    const previewBox = document.getElementById('previewBox');
-
-    // 台本一括解析＆生成（修正版ロジック）
-    generateBtn.addEventListener('click', () => {
-        const rawText = scriptInput.value.trim();
-        if (!rawText) return alert("台本テキストを入力してください");
-
-        // 句読点（。！？）および改行で正しく分割（末尾の記号を保持）
-        const sentences = rawText.split(/(?<=[。！？\n])/g)
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-
-        blocks = [];
-        let currentTime = 0;
-
-        sentences.forEach((text, index) => {
-            // 文字数に応じた表示時間計算（最低2秒）
-            const duration = Math.max(2.0, Math.round(text.length * 0.15 * 100) / 100);
-            blocks.push({
-                id: Date.now() + index,
-                start: currentTime,
-                end: Math.round((currentTime + duration) * 100) / 100,
-                text: text
-            });
-            currentTime = Math.round((currentTime + duration) * 100) / 100;
-        });
-
-        renderBlocks();
-    });
-
-    // ブロック一覧描画
-    function renderBlocks() {
-        blocksContainer.innerHTML = '';
+    const ui = {
+        defFont: document.getElementById('def-font'),
+        defAnim: document.getElementById('def-anim'),
+        defBold: document.getElementById('def-bold'),
+        defItalic: document.getElementById('def-italic'),
+        defUnderline: document.getElementById('def-underline'),
+        defStrikethrough: document.getElementById('def-strikethrough'),
+        defColor: document.getElementById('def-color'),
+        defSize: document.getElementById('def-size'),
+        defStrokeColor: document.getElementById('def-stroke-color'),
+        defStrokeWidth: document.getElementById('def-stroke-width'),
+        defOuterStrokeColor: document.getElementById('def-outer-stroke-color'),
+        defOuterStrokeWidth: document.getElementById('def-outer-stroke-width'),
+        defShadowColor: document.getElementById('def-shadow-color'),
+        defShadowBlur: document.getElementById('def-shadow-blur'),
+        defX: document.getElementById('def-x'),
+        defY: document.getElementById('def-y'),
         
-        if (blocks.length === 0) {
-            blocksContainer.innerHTML = `<div class="text-center text-xs text-gray-600 py-8">ブロックがありません。左側から生成してください。</div>`;
-            return;
-        }
+        mediaInput: document.getElementById('mediaInput'),
+        startBtn: document.getElementById('startBtn'),
+        aiStatus: document.getElementById('aiStatus'),
+        exportBtn: document.getElementById('exportBtn'),
+        
+        mediaPlayer: document.getElementById('mediaPlayer'),
+        canvas: document.getElementById('subtitleCanvas'),
+        blocksContainer: document.getElementById('blocksContainer'),
+        addBlockBtn: document.getElementById('addBlockBtn'),
+        playBtn: document.getElementById('playBtn'),
+        seekSlider: document.getElementById('seekSlider')
+    };
 
-        blocks.forEach((block, idx) => {
-            const card = document.createElement('div');
-            card.className = 'bg-[#010409] p-3 rounded border border-[#30363d] space-y-2';
-            
-            card.innerHTML = `
-                <div class="flex items-center justify-between text-xs">
-                    <span class="bg-[#238636] text-white font-bold px-2 py-0.5 rounded">#${idx + 1}</span>
-                    <div class="flex items-center gap-2">
-                        <input type="number" step="0.1" value="${block.start}" class="input-ui !w-16 !p-1 text-center start-val">
-                        <span class="text-gray-500">~</span>
-                        <input type="number" step="0.1" value="${block.end}" class="input-ui !w-16 !p-1 text-center end-val">
-                        <button class="delete-btn text-red-400 hover:text-red-300 ml-2">削除</button>
-                    </div>
-                </div>
-                <textarea class="input-ui resize-y text-sm text-white font-bold text-area h-16">${block.text}</textarea>
-            `;
+    const ctx = ui.canvas.getContext('2d');
+    ui.canvas.width = 1920; 
+    ui.canvas.height = 1080;
 
-            // イベント登録
-            const textArea = card.querySelector('.text-area');
-            textArea.addEventListener('input', (e) => {
-                block.text = e.target.value;
-                previewBox.innerText = block.text;
-            });
-            textArea.addEventListener('focus', () => {
-                previewBox.innerText = block.text;
-            });
-
-            card.querySelector('.start-val').addEventListener('change', (e) => block.start = parseFloat(e.target.value) || 0);
-            card.querySelector('.end-val').addEventListener('change', (e) => block.end = parseFloat(e.target.value) || 0);
-            card.querySelector('.delete-btn').addEventListener('click', () => {
-                blocks = blocks.filter(b => b.id !== block.id);
-                renderBlocks();
-            });
-
-            blocksContainer.appendChild(card);
-        });
-
-        if (blocks.length > 0) previewBox.innerText = blocks[0].text;
+    // --- Helper: Get Default Style ---
+    function getDefaultStyle() {
+        return {
+            font: ui.defFont.value,
+            anim: ui.defAnim.value,
+            bold: ui.defBold.checked,
+            italic: ui.defItalic.checked,
+            underline: ui.defUnderline.checked,
+            strikethrough: ui.defStrikethrough.checked,
+            color: ui.defColor.value,
+            size: parseFloat(ui.defSize.value),
+            strokeColor: ui.defStrokeColor.value,
+            strokeWidth: parseFloat(ui.defStrokeWidth.value),
+            outerStrokeColor: ui.defOuterStrokeColor.value,
+            outerStrokeWidth: parseFloat(ui.defOuterStrokeWidth.value),
+            shadowColor: ui.defShadowColor.value,
+            shadowBlur: parseFloat(ui.defShadowBlur.value),
+            x: parseFloat(ui.defX.value),
+            y: parseFloat(ui.defY.value)
+        };
     }
 
-    // 単体追加
-    addBlockBtn.addEventListener('click', () => {
-        const lastEnd = blocks.length > 0 ? blocks[blocks.length - 1].end : 0;
-        blocks.push({
-            id: Date.now(),
-            start: lastEnd,
-            end: lastEnd + 2.0,
-            text: '新規テキスト'
-        });
-        renderBlocks();
+    // --- Media Input Handling ---
+    let mediaUrl = null;
+    ui.mediaInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        if(mediaUrl) URL.revokeObjectURL(mediaUrl);
+        mediaUrl = URL.createObjectURL(file);
+        ui.mediaPlayer.src = mediaUrl;
+        
+        ui.mediaPlayer.onloadedmetadata = () => {
+            if(ui.mediaPlayer.videoWidth) {
+                ui.canvas.width = ui.mediaPlayer.videoWidth;
+                ui.canvas.height = ui.mediaPlayer.videoHeight;
+            }
+            ui.seekSlider.max = ui.mediaPlayer.duration;
+            ui.exportBtn.disabled = false;
+        };
     });
+
+    ui.playBtn.addEventListener('click', () => { ui.mediaPlayer.paused ? ui.mediaPlayer.play() : ui.mediaPlayer.pause(); });
+    ui.mediaPlayer.addEventListener('timeupdate', () => { if(!isExporting) ui.seekSlider.value = ui.mediaPlayer.currentTime; });
+    ui.seekSlider.addEventListener('input', (e) => { ui.mediaPlayer.currentTime = parseFloat(e.target.value); });
+
+    // --- AI Transcription Logic ---
+    ui.startBtn.addEventListener('click', async () => {
+        if (!ui.mediaInput.files.length) { alert('ファイルを選択してください！'); return; }
+        
+        ui.startBtn.disabled = true;
+        ui.aiStatus.classList.remove('hidden');
+        ui.blocksContainer.innerHTML = '';
+        blocks = [];
+        
+        try {
+            ui.aiStatus.innerText = "⏳ AIモデルを準備中...";
+            const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
+
+            ui.aiStatus.innerText = "⏳ 音声データを抽出中...";
+            const file = ui.mediaInput.files[0];
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            const arrayBuffer = await file.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            const audioData = audioBuffer.getChannelData(0);
+
+            ui.aiStatus.innerText = "✨ AI文字起こしを実行中...";
+            const result = await transcriber(audioData, { chunk_length_s: 30, stride_length_s: 5, language: 'japanese', task: 'transcribe', return_timestamps: true });
+
+            let chunks = result.chunks || [];
+            
+            // ★ 長文・連続文字列の分割ロジック修正
+            for (let chunk of chunks) {
+                const rawText = chunk.text.trim();
+                const startT = chunk.timestamp[0];
+                const endT = chunk.timestamp[1];
+
+                // 句読点（。！？）や改行でさらに分割
+                const subSentences = rawText.split(/(?<=[。！？\n])/g).map(s => s.trim()).filter(s => s.length > 0);
+                
+                if (subSentences.length <= 1) {
+                    blocks.push({
+                        id: blockIdCounter++,
+                        start: startT,
+                        end: endT,
+                        text: rawText,
+                        override: false,
+                        style: {...getDefaultStyle()}
+                    });
+                } else {
+                    const durationPerChar = (endT - startT) / Math.max(1, rawText.length);
+                    let currStart = startT;
+                    for (let sub of subSentences) {
+                        const subDuration = sub.length * durationPerChar;
+                        blocks.push({
+                            id: blockIdCounter++,
+                            start: currStart,
+                            end: currStart + subDuration,
+                            text: sub,
+                            override: false,
+                            style: {...getDefaultStyle()}
+                        });
+                        currStart += subDuration;
+                    }
+                }
+            }
+
+            ui.aiStatus.innerText = "✅ 解析完了！";
+            setTimeout(() => ui.aiStatus.classList.add('hidden'), 3000);
+            renderBlocksUI();
+        } catch (e) {
+            ui.aiStatus.innerText = "❌ エラー: " + e.message;
+        } finally {
+            ui.startBtn.disabled = false;
+        }
+    });
+
+    // --- Block UI Rendering ---
+    function renderBlocksUI() {
+        ui.blocksContainer.innerHTML = '';
+        blocks.forEach((block, index) => {
+            const el = document.createElement('div');
+            el.className = "bg-[#010409] border border-[#30363d] rounded-lg p-3";
+            el.innerHTML = `
+                <div class="flex gap-2 items-center mb-2">
+                    <span class="text-xs bg-[#238636] px-2 py-1 rounded text-white font-bold">#${index+1}</span>
+                    <input type="number" step="0.1" class="input-ui !py-1 w-16 text-xs" value="${block.start.toFixed(2)}" onchange="updateBlock(${block.id}, 'start', this.value)">
+                    <span class="text-gray-500 text-xs">〜</span>
+                    <input type="number" step="0.1" class="input-ui !py-1 w-16 text-xs" value="${block.end.toFixed(2)}" onchange="updateBlock(${block.id}, 'end', this.value)">
+                    <button class="text-xs bg-[#30363d] px-2 py-1 rounded ml-2" onclick="seekTo(${block.start})">▶ 再生</button>
+                    <div class="ml-auto text-xs flex items-center gap-2">
+                        <label class="flex items-center gap-1 text-[#79c0ff] cursor-pointer"><input type="checkbox" ${block.override ? 'checked' : ''} onchange="toggleOverride(${block.id}, this.checked)"> 個別スタイル</label>
+                        <button class="text-red-400 hover:text-red-300 ml-2" onclick="deleteBlock(${block.id})">削除</button>
+                    </div>
+                </div>
+                <textarea class="input-ui w-full h-16 text-sm" onchange="updateBlock(${block.id}, 'text', this.value)">${block.text}</textarea>
+                
+                <div id="style-panel-${block.id}" class="mt-2 p-3 bg-[#161b22] rounded border border-[#30363d] text-xs ${block.override ? 'block' : 'hidden'}">
+                    <div class="grid grid-cols-4 gap-2 mb-2 pb-2 border-b border-[#30363d]">
+                        <label><input type="checkbox" ${block.style.bold?'checked':''} onchange="updateStyle(${block.id}, 'bold', this.checked)"> 太字</label>
+                        <label><input type="checkbox" ${block.style.italic?'checked':''} onchange="updateStyle(${block.id}, 'italic', this.checked)"> 斜体</label>
+                        <label><input type="checkbox" ${block.style.underline?'checked':''} onchange="updateStyle(${block.id}, 'underline', this.checked)"> 下線</label>
+                        <label><input type="checkbox" ${block.style.strikethrough?'checked':''} onchange="updateStyle(${block.id}, 'strikethrough', this.checked)"> 取消線</label>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div><label class="block mb-1">文字色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.color}" onchange="updateStyle(${block.id}, 'color', this.value)"></div>
+                        <div><label class="block mb-1">内縁色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.strokeColor}" onchange="updateStyle(${block.id}, 'strokeColor', this.value)"></div>
+                        <div><label class="block mb-1">外縁色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.outerStrokeColor}" onchange="updateStyle(${block.id}, 'outerStrokeColor', this.value)"></div>
+                        <div><label class="block mb-1">文字サイズ</label><input type="number" class="input-ui !py-1" value="${block.style.size}" onchange="updateStyle(${block.id}, 'size', this.value)"></div>
+                        <div><label class="block mb-1">内縁太さ</label><input type="number" class="input-ui !py-1" value="${block.style.strokeWidth}" onchange="updateStyle(${block.id}, 'strokeWidth', this.value)"></div>
+                        <div><label class="block mb-1">外縁太さ</label><input type="number" class="input-ui !py-1" value="${block.style.outerStrokeWidth}" onchange="updateStyle(${block.id}, 'outerStrokeWidth', this.value)"></div>
+                    </div>
+                </div>
+            `;
+            ui.blocksContainer.appendChild(el);
+        });
+    }
+
+    window.updateBlock = (id, key, val) => { const b = blocks.find(x => x.id === id); if(b) b[key] = (key === 'start' || key === 'end') ? parseFloat(val) : val; };
+    window.updateStyle = (id, key, val) => { 
+        const b = blocks.find(x => x.id === id); 
+        if(b) b.style[key] = (key === 'bold' || key === 'italic' || key === 'underline' || key === 'strikethrough') ? val : 
+                             (key === 'size' || key === 'strokeWidth' || key === 'outerStrokeWidth' || key === 'x' || key === 'y') ? parseFloat(val) : val; 
+    };
+    window.toggleOverride = (id, checked) => {
+        const b = blocks.find(x => x.id === id);
+        if(b) { b.override = checked; if(checked) b.style = {...getDefaultStyle()}; renderBlocksUI(); }
+    };
+    window.deleteBlock = (id) => { blocks = blocks.filter(x => x.id !== id); renderBlocksUI(); };
+    window.seekTo = (time) => { ui.mediaPlayer.currentTime = time; ui.mediaPlayer.play(); };
+
+    ui.addBlockBtn.addEventListener('click', () => {
+        const lastEnd = blocks.length > 0 ? blocks[blocks.length-1].end : 0;
+        blocks.push({ id: blockIdCounter++, start: lastEnd + 0.5, end: lastEnd + 3.5, text: "新規テロップ", override: false, style: {...getDefaultStyle()} });
+        renderBlocksUI();
+    });
+
+    // --- Canvas Rendering Loop ---
+    function drawCanvas() {
+        ctx.clearRect(0, 0, ui.canvas.width, ui.canvas.height);
+        
+        if (ui.mediaPlayer.readyState >= 2) {
+            ctx.drawImage(ui.mediaPlayer, 0, 0, ui.canvas.width, ui.canvas.height);
+        }
+
+        const t = ui.mediaPlayer.currentTime;
+        const activeBlock = blocks.find(b => t >= b.start && t <= b.end);
+        
+        if (activeBlock) {
+            const style = activeBlock.override ? activeBlock.style : getDefaultStyle();
+            const timeIn = t - activeBlock.start;
+            
+            ctx.save();
+            let alpha = 1.0; let yOffset = 0; let scale = 1.0; let textToDraw = activeBlock.text;
+
+            if (style.anim === 'fade') { alpha = Math.min(1, timeIn * 3); }
+            else if (style.anim === 'slide-up') { alpha = Math.min(1, timeIn * 3); yOffset = (1 - alpha) * 40; }
+            else if (style.anim === 'typewriter') { const charCount = Math.floor(timeIn * 15); textToDraw = textToDraw.substring(0, Math.min(textToDraw.length, charCount)); }
+            else if (style.anim === 'zoom-in') { alpha = Math.min(1, timeIn * 3); scale = 0.8 + (0.2 * Math.min(1, timeIn * 4)); }
+
+            ctx.globalAlpha = alpha;
+            
+            // フォントスタイルの構築（斜体・太字）
+            const fontItalic = style.italic ? 'italic ' : '';
+            const fontWeight = style.bold ? 'bold ' : 'normal ';
+            ctx.font = `${fontItalic}${fontWeight}${style.size}px ${style.font}`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round';
+            
+            const baseX = (style.x / 100) * ui.canvas.width;
+            const baseY = (style.y / 100) * ui.canvas.height + yOffset;
+
+            if (scale !== 1.0) { ctx.translate(baseX, baseY); ctx.scale(scale, scale); ctx.translate(-baseX, -baseY); }
+
+            const lines = textToDraw.split('\n');
+            const lineHeight = style.size * 1.3;
+            const startY = baseY - ((lines.length - 1) * lineHeight) / 2;
+
+            for (let i = 0; i < lines.length; i++) {
+                const y = startY + (i * lineHeight);
+                
+                // 下線・取消線のパスを引く補助関数
+                const drawDecorations = (action) => {
+                    if(!style.underline && !style.strikethrough) return;
+                    const width = ctx.measureText(lines[i]).width;
+                    const left = baseX - (width / 2);
+                    const right = baseX + (width / 2);
+                    
+                    ctx.beginPath();
+                    if(style.underline) { const uy = y + (style.size * 0.4); ctx.moveTo(left, uy); ctx.lineTo(right, uy); }
+                    if(style.strikethrough) { const sy = y - (style.size * 0.05); ctx.moveTo(left, sy); ctx.lineTo(right, sy); }
+                    ctx.lineCap = 'round';
+
+                    if (action === 'outer' && style.outerStrokeWidth > 0) {
+                        ctx.strokeStyle = style.outerStrokeColor;
+                        ctx.lineWidth = (style.size * 0.08) + style.strokeWidth + (style.outerStrokeWidth * 2);
+                        ctx.stroke();
+                    } else if (action === 'inner' && style.strokeWidth > 0) {
+                        ctx.strokeStyle = style.strokeColor;
+                        ctx.lineWidth = (style.size * 0.08) + style.strokeWidth;
+                        ctx.stroke();
+                    } else if (action === 'fill') {
+                        ctx.strokeStyle = style.color;
+                        ctx.lineWidth = style.size * 0.08;
+                        ctx.stroke();
+                    }
+                };
+
+                // 影の設定 (最初のレイヤーにだけ適用)
+                if (style.shadowBlur > 0) { ctx.shadowColor = style.shadowColor; ctx.shadowBlur = style.shadowBlur; }
+
+                // 1. 外側の縁取り描画
+                if (style.outerStrokeWidth > 0) {
+                    ctx.strokeStyle = style.outerStrokeColor;
+                    ctx.lineWidth = style.strokeWidth + (style.outerStrokeWidth * 2);
+                    ctx.strokeText(lines[i], baseX, y);
+                    drawDecorations('outer');
+                    ctx.shadowBlur = 0;
+                }
+
+                // 2. 内側の縁取り描画
+                if (style.strokeWidth > 0) {
+                    ctx.strokeStyle = style.strokeColor;
+                    ctx.lineWidth = style.strokeWidth;
+                    ctx.strokeText(lines[i], baseX, y);
+                    drawDecorations('inner');
+                    ctx.shadowBlur = 0;
+                }
+
+                // 3. テキストの塗りつぶし
+                ctx.fillStyle = style.color;
+                ctx.shadowBlur = 0;
+                ctx.fillText(lines[i], baseX, y);
+                drawDecorations('fill');
+            }
+            ctx.restore();
+        }
+        rafId = requestAnimationFrame(drawCanvas);
+    }
+    drawCanvas();
+
+    // --- MP4 Video & Audio Export ---
+    ui.exportBtn.addEventListener('click', async () => {
+        if(isExporting) return;
+        if(!window.MediaRecorder || !ui.canvas.captureStream) { alert('非対応ブラウザです。'); return; }
+        if(!ui.mediaPlayer.src) return;
+
+        isExporting = true;
+        ui.exportBtn.innerText = "書き出し中... (再生を止めないでください)";
+        ui.exportBtn.classList.replace('bg-[#8957e5]', 'bg-gray-600');
+        
+        const canvasStream = ui.canvas.captureStream(30);
+        let audioStream = new MediaStream();
+
+        try {
+            if(!audioCtxExport) {
+                audioCtxExport = new (window.AudioContext || window.webkitAudioContext)();
+                mediaSource = audioCtxExport.createMediaElementSource(ui.mediaPlayer);
+                mediaDest = audioCtxExport.createMediaStreamDestination();
+                mediaSource.connect(mediaDest);
+                mediaSource.connect(audioCtxExport.destination);
+            }
+            audioStream = mediaDest.stream;
+        } catch(e) {
+            if (ui.mediaPlayer.captureStream) audioStream = ui.mediaPlayer.captureStream();
+            else if (ui.mediaPlayer.mozCaptureStream) audioStream = ui.mediaPlayer.mozCaptureStream();
+        }
+
+        const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+        const mimeOptions = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+        const mime = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || '';
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        
+        const rec = new MediaRecorder(combinedStream, mime ? { mimeType: mime } : undefined);
+        const chunks = [];
+        
+        rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+        rec.onstop = () => {
+            const blob = new Blob(chunks, { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `autostudio_export.${ext}`; a.click();
+            URL.revokeObjectURL(url);
+            
+            isExporting = false; ui.exportBtn.innerText = "MP4で書き出す"; ui.exportBtn.classList.replace('bg-gray-600', 'bg-[#8957e5]');
+            ui.mediaPlayer.pause();
+        };
+
+        ui.mediaPlayer.currentTime = 0;
+        await ui.mediaPlayer.play();
+        rec.start(250);
+        ui.mediaPlayer.onended = () => { if(rec.state !== 'inactive') rec.stop(); };
+    });
+
 </script>
 </body>
 </html>
