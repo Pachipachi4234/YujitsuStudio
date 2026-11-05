@@ -64,10 +64,10 @@
                     <div><label class="block mb-1">内側縁の太さ</label><input type="number" id="def-stroke-width" value="6" class="input-ui !py-1" min="0"></div>
 
                     <div><label class="block mb-1">外側の縁色</label><input type="color" id="def-outer-stroke-color" value="#ff0000" class="input-ui"></div>
-                    <div><label class="block mb-1">外側縁の太さ</label><input type="number" id="def-outer-stroke-width" value="0" class="input-ui !py-1" min="0"></div>
+                    <div><label class="block mb-1">外側縁の太さ</label><input type="number" id="def-outer-stroke-width" value="4" class="input-ui !py-1" min="0"></div>
 
                     <div><label class="block mb-1">影の色</label><input type="color" id="def-shadow-color" value="#000000" class="input-ui"></div>
-                    <div><label class="block mb-1">影・発光 (Blur)</label><input type="number" id="def-shadow-blur" value="10" class="input-ui !py-1" min="0"></div>
+                    <div><label class="block mb-1">影・発光 (Blur)</label><input type="number" id="def-shadow-blur" value="0" class="input-ui !py-1" min="0"></div>
 
                     <div><label class="block mb-1">表示位置 X (%)</label><input type="number" id="def-x" value="50" class="input-ui !py-1" min="0" max="100"></div>
                     <div><label class="block mb-1">表示位置 Y (%)</label><input type="number" id="def-y" value="88" class="input-ui !py-1" min="0" max="100"></div>
@@ -122,7 +122,7 @@
                     <button id="addBlockBtn" class="text-xs bg-[#21262d] border border-[#30363d] px-3 py-1 rounded hover:bg-[#30363d]">＋ 新規ブロック</button>
                 </div>
                 <div id="blocksContainer" class="space-y-4">
-                    <div class="text-sm text-gray-500 text-center py-10">AI解析を実行すると、ここにテロップブロックが生成されます。</div>
+                    <div class="text-sm text-gray-500 text-center py-10">AI解析を実行するか「＋ 新規ブロック」を押すと、ここにテロップブロックが表示されます。</div>
                 </div>
             </div>
 
@@ -187,15 +187,15 @@
             underline: ui.defUnderline.checked,
             strikethrough: ui.defStrikethrough.checked,
             color: ui.defColor.value,
-            size: parseFloat(ui.defSize.value),
+            size: parseFloat(ui.defSize.value) || 60,
             strokeColor: ui.defStrokeColor.value,
-            strokeWidth: parseFloat(ui.defStrokeWidth.value),
+            strokeWidth: parseFloat(ui.defStrokeWidth.value) || 0,
             outerStrokeColor: ui.defOuterStrokeColor.value,
-            outerStrokeWidth: parseFloat(ui.defOuterStrokeWidth.value),
+            outerStrokeWidth: parseFloat(ui.defOuterStrokeWidth.value) || 4,
             shadowColor: ui.defShadowColor.value,
-            shadowBlur: parseFloat(ui.defShadowBlur.value),
-            x: parseFloat(ui.defX.value),
-            y: parseFloat(ui.defY.value)
+            shadowBlur: parseFloat(ui.defShadowBlur.value) || 0,
+            x: parseFloat(ui.defX.value) || 50,
+            y: parseFloat(ui.defY.value) || 88
         };
     }
 
@@ -222,7 +222,7 @@
     ui.mediaPlayer.addEventListener('timeupdate', () => { if(!isExporting) ui.seekSlider.value = ui.mediaPlayer.currentTime; });
     ui.seekSlider.addEventListener('input', (e) => { ui.mediaPlayer.currentTime = parseFloat(e.target.value); });
 
-    // ★ AI Transcription Logic (新規ブロックが確実に生成されるように修復)
+    // --- AI Transcription Logic ---
     ui.startBtn.addEventListener('click', async () => {
         if (!ui.mediaInput.files.length) { alert('ファイルを選択してください！'); return; }
         
@@ -246,20 +246,39 @@
             const result = await transcriber(audioData, { chunk_length_s: 30, stride_length_s: 5, language: 'japanese', task: 'transcribe', return_timestamps: true });
 
             let chunks = result.chunks || [];
+            const mediaDuration = ui.mediaPlayer.duration || 999;
             
-            // 全てのチャンクを安全に1つずつの新規ブロックとして展開
-            for (let chunk of chunks) {
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
                 const text = chunk.text.trim();
                 if (!text) continue;
                 
+                let startT = chunk.timestamp[0] || 0;
+                let endT = chunk.timestamp[1];
+
+                if (!endT || endT <= startT) {
+                    if (i < chunks.length - 1 && chunks[i+1].timestamp[0]) {
+                        endT = chunks[i+1].timestamp[0];
+                    } else {
+                        endT = Math.max(startT + 3.0, mediaDuration);
+                    }
+                }
+
                 blocks.push({
                     id: blockIdCounter++,
-                    start: chunk.timestamp[0] || 0,
-                    end: chunk.timestamp[1] || ((chunk.timestamp[0] || 0) + 2.0),
+                    start: startT,
+                    end: endT,
                     text: text,
                     override: false,
                     style: {...getDefaultStyle()}
                 });
+            }
+
+            if (blocks.length > 0 && mediaDuration < 990) {
+                const last = blocks[blocks.length - 1];
+                if (last.end < mediaDuration) {
+                    last.end = mediaDuration;
+                }
             }
 
             ui.aiStatus.innerText = "✅ 解析完了！ " + blocks.length + "個のブロックを生成しました。";
@@ -298,19 +317,41 @@
                 <textarea class="input-ui w-full h-16 text-sm" onchange="updateBlock(${block.id}, 'text', this.value)">${block.text}</textarea>
                 
                 <div id="style-panel-${block.id}" class="mt-2 p-3 bg-[#161b22] rounded border border-[#30363d] text-xs ${block.override ? 'block' : 'hidden'}">
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                            <label class="block mb-1 text-[10px] text-gray-400">フォント種類</label>
+                            <select class="input-ui !py-1 text-xs" onchange="updateStyle(${block.id}, 'font', this.value)">
+                                <option value="sans-serif" ${block.style.font==='sans-serif'?'selected':''}>ゴシック (Sans-serif)</option>
+                                <option value="serif" ${block.style.font==='serif'?'selected':''}>明朝体 (Serif)</option>
+                                <option value="monospace" ${block.style.font==='monospace'?'selected':''}>等幅 (Monospace)</option>
+                                <option value="'Impact'" ${block.style.font==="'Impact'"?'selected':''}>インパクト</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-1 text-[10px] text-gray-400">文字サイズ</label>
+                            <input type="number" class="input-ui !py-1" value="${block.style.size}" onchange="updateStyle(${block.id}, 'size', this.value)">
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-4 gap-2 mb-2 pb-2 border-b border-[#30363d]">
                         <label><input type="checkbox" ${block.style.bold?'checked':''} onchange="updateStyle(${block.id}, 'bold', this.checked)"> 太字</label>
                         <label><input type="checkbox" ${block.style.italic?'checked':''} onchange="updateStyle(${block.id}, 'italic', this.checked)"> 斜体</label>
                         <label><input type="checkbox" ${block.style.underline?'checked':''} onchange="updateStyle(${block.id}, 'underline', this.checked)"> 下線</label>
                         <label><input type="checkbox" ${block.style.strikethrough?'checked':''} onchange="updateStyle(${block.id}, 'strikethrough', this.checked)"> 取消線</label>
                     </div>
-                    <div class="grid grid-cols-3 gap-2">
+
+                    <div class="grid grid-cols-3 gap-2 mb-2">
                         <div><label class="block mb-1">文字色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.color}" onchange="updateStyle(${block.id}, 'color', this.value)"></div>
                         <div><label class="block mb-1">内縁色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.strokeColor}" onchange="updateStyle(${block.id}, 'strokeColor', this.value)"></div>
                         <div><label class="block mb-1">外縁色</label><input type="color" class="input-ui h-6 p-0" value="${block.style.outerStrokeColor}" onchange="updateStyle(${block.id}, 'outerStrokeColor', this.value)"></div>
-                        <div><label class="block mb-1">文字サイズ</label><input type="number" class="input-ui !py-1" value="${block.style.size}" onchange="updateStyle(${block.id}, 'size', this.value)"></div>
                         <div><label class="block mb-1">内縁太さ</label><input type="number" class="input-ui !py-1" value="${block.style.strokeWidth}" onchange="updateStyle(${block.id}, 'strokeWidth', this.value)"></div>
                         <div><label class="block mb-1">外縁太さ</label><input type="number" class="input-ui !py-1" value="${block.style.outerStrokeWidth}" onchange="updateStyle(${block.id}, 'outerStrokeWidth', this.value)"></div>
+                        <div><label class="block mb-1">影 (Blur)</label><input type="number" class="input-ui !py-1" value="${block.style.shadowBlur}" onchange="updateStyle(${block.id}, 'shadowBlur', this.value)"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#30363d]">
+                        <div><label class="block mb-1 text-[10px] text-gray-400">表示位置 X (%)</label><input type="number" class="input-ui !py-1" value="${block.style.x}" onchange="updateStyle(${block.id}, 'x', this.value)"></div>
+                        <div><label class="block mb-1 text-[10px] text-gray-400">表示位置 Y (%)</label><input type="number" class="input-ui !py-1" value="${block.style.y}" onchange="updateStyle(${block.id}, 'y', this.value)"></div>
                     </div>
                 </div>
             `;
@@ -322,7 +363,7 @@
     window.updateStyle = (id, key, val) => { 
         const b = blocks.find(x => x.id === id); 
         if(b) b.style[key] = (key === 'bold' || key === 'italic' || key === 'underline' || key === 'strikethrough') ? val : 
-                             (key === 'size' || key === 'strokeWidth' || key === 'outerStrokeWidth' || key === 'x' || key === 'y') ? parseFloat(val) : val; 
+                             (key === 'size' || key === 'strokeWidth' || key === 'outerStrokeWidth' || key === 'shadowBlur' || key === 'x' || key === 'y') ? parseFloat(val) : val; 
     };
     window.toggleOverride = (id, checked) => {
         const b = blocks.find(x => x.id === id);
@@ -335,8 +376,8 @@
         const lastEnd = blocks.length > 0 ? blocks[blocks.length-1].end : 0;
         blocks.push({ 
             id: blockIdCounter++, 
-            start: lastEnd + 0.5, 
-            end: lastEnd + 3.5, 
+            start: lastEnd + 0.1, 
+            end: lastEnd + 3.1, 
             text: "新規テロップ", 
             override: false, 
             style: {...getDefaultStyle()} 
@@ -371,17 +412,23 @@
             
             const fontItalic = style.italic ? 'italic ' : '';
             const fontWeight = style.bold ? 'bold ' : 'normal ';
-            ctx.font = `${fontItalic}${fontWeight}${style.size}px ${style.font}`;
+            const fontSize = style.size || 60;
+            const fontFamily = style.font || 'sans-serif';
+
+            ctx.font = `${fontItalic}${fontWeight}${fontSize}px ${fontFamily}`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineJoin = 'round';
             
-            const baseX = (style.x / 100) * ui.canvas.width;
-            const baseY = (style.y / 100) * ui.canvas.height + yOffset;
+            const posX = style.x !== undefined ? style.x : 50;
+            const posY = style.y !== undefined ? style.y : 88;
+
+            const baseX = (posX / 100) * ui.canvas.width;
+            const baseY = (posY / 100) * ui.canvas.height + yOffset;
 
             if (scale !== 1.0) { ctx.translate(baseX, baseY); ctx.scale(scale, scale); ctx.translate(-baseX, -baseY); }
 
             const lines = textToDraw.split('\n');
-            const lineHeight = style.size * 1.3;
+            const lineHeight = fontSize * 1.3;
             const startY = baseY - ((lines.length - 1) * lineHeight) / 2;
 
             for (let i = 0; i < lines.length; i++) {
@@ -394,21 +441,21 @@
                     const right = baseX + (width / 2);
                     
                     ctx.beginPath();
-                    if(style.underline) { const uy = y + (style.size * 0.4); ctx.moveTo(left, uy); ctx.lineTo(right, uy); }
-                    if(style.strikethrough) { const sy = y - (style.size * 0.05); ctx.moveTo(left, sy); ctx.lineTo(right, sy); }
+                    if(style.underline) { const uy = y + (fontSize * 0.4); ctx.moveTo(left, uy); ctx.lineTo(right, uy); }
+                    if(style.strikethrough) { const sy = y - (fontSize * 0.05); ctx.moveTo(left, sy); ctx.lineTo(right, sy); }
                     ctx.lineCap = 'round';
 
                     if (action === 'outer' && style.outerStrokeWidth > 0) {
                         ctx.strokeStyle = style.outerStrokeColor;
-                        ctx.lineWidth = (style.size * 0.08) + style.strokeWidth + (style.outerStrokeWidth * 2);
+                        ctx.lineWidth = (fontSize * 0.08) + style.strokeWidth + (style.outerStrokeWidth * 2);
                         ctx.stroke();
                     } else if (action === 'inner' && style.strokeWidth > 0) {
                         ctx.strokeStyle = style.strokeColor;
-                        ctx.lineWidth = (style.size * 0.08) + style.strokeWidth;
+                        ctx.lineWidth = (fontSize * 0.08) + style.strokeWidth;
                         ctx.stroke();
                     } else if (action === 'fill') {
                         ctx.strokeStyle = style.color;
-                        ctx.lineWidth = style.size * 0.08;
+                        ctx.lineWidth = fontSize * 0.08;
                         ctx.stroke();
                     }
                 };
