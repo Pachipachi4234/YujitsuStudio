@@ -133,7 +133,6 @@
     import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
     env.allowLocalModels = false;
 
-    // --- State & Elements ---
     let blocks = [];
     let blockIdCounter = 0;
     let isExporting = false;
@@ -177,7 +176,6 @@
     ui.canvas.width = 1920; 
     ui.canvas.height = 1080;
 
-    // --- Helper: Get Default Style ---
     function getDefaultStyle() {
         return {
             font: ui.defFont.value,
@@ -199,7 +197,6 @@
         };
     }
 
-    // --- Media Input Handling ---
     let mediaUrl = null;
     ui.mediaInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -222,7 +219,7 @@
     ui.mediaPlayer.addEventListener('timeupdate', () => { if(!isExporting) ui.seekSlider.value = ui.mediaPlayer.currentTime; });
     ui.seekSlider.addEventListener('input', (e) => { ui.mediaPlayer.currentTime = parseFloat(e.target.value); });
 
-    // --- AI Transcription Logic ---
+    // ★ 全ての音声データを繰り返しループで漏れなく抽出する修正ロジック
     ui.startBtn.addEventListener('click', async () => {
         if (!ui.mediaInput.files.length) { alert('ファイルを選択してください！'); return; }
         
@@ -248,16 +245,18 @@
             let chunks = result.chunks || [];
             const mediaDuration = ui.mediaPlayer.duration || 999;
             
+            // 全チャンクを繰り返し取得・配列化
             for (let i = 0; i < chunks.length; i++) {
                 const chunk = chunks[i];
                 const text = chunk.text.trim();
                 if (!text) continue;
                 
-                let startT = chunk.timestamp[0] || 0;
-                let endT = chunk.timestamp[1];
+                let startT = (chunk.timestamp && chunk.timestamp[0] !== null) ? chunk.timestamp[0] : 0;
+                let endT = (chunk.timestamp && chunk.timestamp[1] !== null) ? chunk.timestamp[1] : 0;
 
+                // 終了タイムラグがある場合は次チャンク開始まで維持
                 if (!endT || endT <= startT) {
-                    if (i < chunks.length - 1 && chunks[i+1].timestamp[0]) {
+                    if (i < chunks.length - 1 && chunks[i+1].timestamp && chunks[i+1].timestamp[0]) {
                         endT = chunks[i+1].timestamp[0];
                     } else {
                         endT = Math.max(startT + 3.0, mediaDuration);
@@ -274,6 +273,7 @@
                 });
             }
 
+            // 最後のブロックが表示時間の終わりまで残るよう調整
             if (blocks.length > 0 && mediaDuration < 990) {
                 const last = blocks[blocks.length - 1];
                 if (last.end < mediaDuration) {
@@ -291,7 +291,6 @@
         }
     });
 
-    // --- Block UI Rendering ---
     function renderBlocksUI() {
         ui.blocksContainer.innerHTML = '';
         if (blocks.length === 0) {
@@ -385,7 +384,6 @@
         renderBlocksUI();
     });
 
-    // --- Canvas Rendering Loop ---
     function drawCanvas() {
         ctx.clearRect(0, 0, ui.canvas.width, ui.canvas.height);
         
@@ -489,7 +487,6 @@
     }
     drawCanvas();
 
-    // --- MP4 Video & Audio Export ---
     ui.exportBtn.addEventListener('click', async () => {
         if(isExporting) return;
         if(!window.MediaRecorder || !ui.canvas.captureStream) { alert('非対応ブラウザです。'); return; }
