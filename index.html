@@ -3,73 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YuJitsu Studio</title>
+    <title>YuJitsu Studio | 統合スイート</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0d1117; color: #c9d1d9; }
-        .tab-btn.active {
-            border-bottom: 2px solid #58a6ff;
-            color: #ffffff;
-            font-weight: bold;
+        .tab-active {
+            border-bottom: 2px solid #fd8c73;
+            color: #c9d1d9;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            color: #8b949e;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-inactive:hover {
+            background-color: rgba(177, 186, 196, 0.12);
+            color: #c9d1d9;
+            border-radius: 6px 6px 0 0;
         }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
-
-    <!-- ナビゲーションバー -->
-    <header class="bg-[#161b22] border-b border-[#30363d] px-6 py-3 flex items-center justify-between flex-none">
-        <div class="flex items-center space-x-3">
-            <div class="bg-[#58a6ff] text-black font-extrabold px-3 py-1 rounded-lg text-lg">Y</div>
-            <h1 class="text-xl font-bold text-white tracking-wide">YuJitsu Studio</h1>
+<body class="bg-[#0d1117] flex flex-col h-screen overflow-hidden text-sm font-sans">
+    
+    <!-- Header (GitHub Style) -->
+    <header class="bg-[#161b22] border-b border-[#30363d] flex-none">
+        <div class="px-4 py-2.5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-7 h-7 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center shadow-lg">
+                    <span class="text-white font-bold text-base leading-none">Y</span>
+                </div>
+                <h1 class="text-[#c9d1d9] font-semibold text-base">YuJitsu Studio <span class="text-xs text-purple-400 font-normal">Suite Edition</span></h1>
+            </div>
+            <div class="text-xs text-gray-400 font-mono">
+                v4.2 Suite
+            </div>
         </div>
         
-        <!-- タブ切り替えボタン -->
-        <nav class="flex space-x-6 text-sm text-gray-400">
-            <button onclick="switchTab('clipforge')" id="tab-clipforge" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
-                <span>📋</span> ClipForge
+        <!-- タブナビゲーション -->
+        <nav class="flex px-4 gap-1 overflow-x-auto" id="tabs">
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-active transition text-xs" data-target="thumbnail">
+                <span>🖼️</span> ThumbnailMaker Pro
             </button>
-            <button onclick="switchTab('moddel-one')" id="tab-moddel-one" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
-                <span>🎤</span> Moddel-one
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-inactive transition text-xs" data-target="editor">
+                <span>🎬</span> YujitsuEditor
             </button>
-            <button onclick="switchTab('autostudio')" id="tab-autostudio" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
-                <span>📺</span> AutoStudio
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-inactive transition text-xs" data-target="autostudio">
+                <span>📝</span> AutoStudio
             </button>
-            <button onclick="switchTab('clipcutter')" id="tab-clipcutter" class="tab-btn py-2 px-1 hover:text-white transition flex items-center gap-1">
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-inactive transition text-xs" data-target="clipcutter">
                 <span>✂️</span> ClipCutter
             </button>
-            <!-- 🎬 Yujitsu Editor に表記も統一！ -->
-            <button onclick="switchTab('editor')" id="tab-editor" class="tab-btn active py-2 px-1 hover:text-white transition flex items-center gap-1 text-[#58a6ff]">
-                <span>🎬</span> Yujitsu Editor
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-inactive transition text-xs" data-target="clipforge">
+                <span>🗣️</span> ClipForge
+            </button>
+            <button class="px-3 py-1.5 flex items-center gap-1.5 tab-inactive transition text-xs" data-target="voicechanger">
+                <span>🎙️</span> VoiceChanger
             </button>
         </nav>
     </header>
 
-    <!-- iframe表示エリア (YujitsuEditor.html を読み込むように修正) -->
-    <main class="flex-1 bg-[#0d1117] relative">
-        <iframe id="app-frame" src="YujitsuEditor.html" class="w-full h-full border-none"></iframe>
+    <!-- Main Workspace (すべて外部ファイル直接参照) -->
+    <main class="flex-1 relative bg-[#010409]">
+        <iframe id="frame-thumbnail" src="./YuJitsuThumbnailMakerPro.html" class="absolute inset-0 w-full h-full border-none block"></iframe>
+        <iframe id="frame-editor" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        <iframe id="frame-autostudio" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        <iframe id="frame-clipcutter" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        <iframe id="frame-clipforge" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
+        <iframe id="frame-voicechanger" class="absolute inset-0 w-full h-full border-none hidden"></iframe>
     </main>
 
     <script>
-        const routes = {
-            'clipforge': 'ClipForge.html',
-            'moddel-one': 'Moddel-one.html',
-            'autostudio': 'AutoStudio.html',
-            'clipcutter': 'ClipCutter.html',
-            'editor': 'YujitsuEditor.html' // ◀ ★ここを YujitsuEditor.html に統一！
+        // 大文字小文字を含めたリポジトリ内ファイルパスの正確なマップ
+        const filePaths = {
+            thumbnail: './YuJitsuThumbnailMakerPro.html',
+            editor: './YujitsuEditor.html',
+            autostudio: './AutoStudio.html',
+            clipcutter: './ClipCutter.html',
+            clipforge: './ClipForge.html',
+            voicechanger: './Moddel-one.html'
         };
 
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'text-[#58a6ff]'));
-            const activeBtn = document.getElementById(`tab-${tabName}`);
-            activeBtn.classList.add('active');
-            
-            if(tabName === 'editor') activeBtn.classList.add('text-[#58a6ff]');
-            
-            const frame = document.getElementById('app-frame');
-            if (routes[tabName]) {
-                frame.src = routes[tabName];
-            }
-        }
+        const tabs = document.querySelectorAll('#tabs button');
+        const frames = {
+            thumbnail: document.getElementById('frame-thumbnail'),
+            editor: document.getElementById('frame-editor'),
+            autostudio: document.getElementById('frame-autostudio'),
+            clipcutter: document.getElementById('frame-clipcutter'),
+            clipforge: document.getElementById('frame-clipforge'),
+            voicechanger: document.getElementById('frame-voicechanger')
+        };
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.target;
+
+                tabs.forEach(t => { t.classList.remove('tab-active'); t.classList.add('tab-inactive'); });
+                tab.classList.add('tab-active'); tab.classList.remove('tab-inactive');
+                
+                Object.values(frames).forEach(f => f.classList.replace('block', 'hidden'));
+
+                if (frames[target]) {
+                    // タブ選択時に遅延ロードして動作を軽量化
+                    if (!frames[target].src && filePaths[target]) {
+                        frames[target].src = filePaths[target];
+                    }
+                    frames[target].classList.replace('hidden', 'block');
+                }
+            });
+        });
     </script>
 </body>
 </html>
