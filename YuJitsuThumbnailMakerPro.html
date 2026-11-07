@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>YuJitsu ThumbnailMaker Pro v2.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 日本語フォント一式 -->
+    <link href="https://fonts.googleapis.com/css2?family=Corporate+Logo+Rounded:wght@700&family=Dela+Gothic+One&family=DotGothic16&family=Kaisei+Tokumin:wght@700&family=Kiwi+Maru:wght@500&family=M+PLUS+Rounded+1c:wght@800&family=Mochiy+Pop+P+One&family=Potta+One&family=Reggae+One&family=RocknRoll+One&family=Yusei+Magic&family=Zen+Maru+Gothic:wght@900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; overflow: hidden; }
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
+        .input-ui { background: #010409; border: 1px solid #30363d; color: #c9d1d9; border-radius: 0.375rem; padding: 0.25rem 0.5rem; width: 100%; font-size: 0.75rem; }
+        .btn-action { font-size: 0.75rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; font-weight: bold; border: 1px solid #30363d; cursor: pointer; text-align: center; }
+        .btn-action:hover { background-color: #21262d; border-color: #58a6ff; }
+        .btn-toggle { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; border: 1px solid #30363d; cursor: pointer; background: #010409; color: #8b949e; }
+        .btn-toggle.active { background: #238636; color: #ffffff; border-color: #2ea043; font-weight: bold; }
+        .layer-item { background: #010409; border: 1px solid #30363d; padding: 0.375rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+        .layer-item.active { border-color: #58a6ff; background: #161b22; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col p-3 gap-3">
+
+    <!-- ヘッダー -->
+    <header class="flex justify-between items-center border-b border-[#30363d] pb-2 flex-none">
+        <div>
+            <h1 class="text-lg font-bold text-[#58a6ff]">YuJitsu ThumbnailMaker <span class="text-xs text-purple-400 font-normal">Pro v2.2</span></h1>
+            <p class="text-[11px] text-gray-400">レイヤー入れ替え(順序変更)・本物レインボー・全フォント＆文字装飾対応</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="exportPngBtn" class="bg-[#8957e5] hover:bg-[#9d6cfa] text-white text-xs px-4 py-2 rounded font-bold transition shadow-lg">
+                💾 1280x720 高画質PNG書き出し
+            </button>
+        </div>
+    </header>
+
+    <!-- メインエリア -->
+    <div class="flex-1 flex gap-3 min-h-0">
+        
+        <!-- 左：操作パネル -->
+        <div class="w-96 panel p-3 flex flex-col gap-3 overflow-y-auto flex-none">
+            
+            <!-- ① レイヤー追加 ＆ レイヤー一覧（並び替えボタン付き） -->
+            <div class="space-y-2 border-b border-[#30363d] pb-3 bg-[#010409] p-2.5 rounded border border-[#30363d]">
+                <label class="text-xs font-bold text-[#79c0ff]">➕ レイヤー追加</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="addTextBtn" class="btn-action bg-blue-900/40 text-blue-300">📝 文字追加</button>
+                    <button id="addShapeBtn" class="btn-action bg-green-900/40 text-green-300">🔷 図形追加</button>
+                    <label class="btn-action bg-purple-900/40 text-purple-300 cursor-pointer text-center block">
+                        🖼️ サブ画像
+                        <input type="file" id="subFileInput" accept="image/*" class="hidden">
+                    </label>
+                    <button id="addMosaicBtn" class="btn-action bg-yellow-900/40 text-yellow-300">🟩 モザイク</button>
+                </div>
+
+                <div class="pt-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-gray-400">レイヤー重なり順 (上が前面)</span>
+                        <div class="flex gap-1">
+                            <button id="moveLayerUpBtn" class="bg-gray-800 hover:bg-gray-700 text-white text-[10px] px-2 py-0.5 rounded border border-gray-600">⬆️ 上へ</button>
+                            <button id="moveLayerDownBtn" class="bg-gray-800 hover:bg-gray-700 text-white text-[10px] px-2 py-0.5 rounded border border-gray-600">⬇️ 下へ</button>
+                        </div>
+                    </div>
+                    <div id="layerList" class="space-y-1 mt-1.5 max-h-36 overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <!-- ② 背景＆下地色設定 -->
+            <div class="space-y-2 border-b border-[#30363d] pb-3">
+                <label class="text-xs font-bold text-[#79c0ff]">🖼️ 背景 ＆ 下地グラデーション設定</label>
+                <input type="file" id="bgFileInput" accept="image/*" class="input-ui cursor-pointer">
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <span class="text-[10px] text-gray-400">フィルター</span>
+                        <select id="bgFilter" class="input-ui">
+                            <option value="none">ノーマル</option>
+                            <option value="rainbow">🌈 ギラギラ本物レインボー</option>
+                            <option value="glow">輝く (Glow)</option>
+                            <option value="grayscale">白黒 (Monochrome)</option>
+                            <option value="sepia">レトロ (Sepia)</option>
+                            <option value="invert">サイバー (Invert)</option>
+                            <option value="hue">エモい (HueShift)</option>
+                            <option value="vivid">高彩度 (Vivid)</option>
+                            <option value="vintage">フィルム (Vintage)</option>
+                            <option value="cool">クール (Cool)</option>
+                            <option value="warm">ウォーム (Warm)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-gray-400">背景回転 [度]</span>
+                        <input type="number" id="bgRotation" value="0" min="-180" max="180" class="input-ui">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <span class="text-[10px] text-gray-400">ぼかし @0-20@</span>
+                        <input type="range" id="bgBlur" min="0" max="20" value="0" class="w-full">
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-gray-400">明るさ @20-150@</span>
+                        <input type="range" id="bgBrightness" min="20" max="150" value="100" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Canva風背景下地グラデーション -->
+                <div class="bg-[#010409] p-2 rounded border border-[#30363d] space-y-1.5">
+                    <span class="text-[10px] font-bold text-gray-300">🎨 下地カラー (Canva風マルチグラデーション)</span>
+                    <div id="bgColorPickers" class="flex flex-wrap gap-1 items-center"></div>
+                    <div class="flex gap-2 pt-1">
+                        <button id="addBgColorBtn" class="bg-gray-800 text-[10px] px-2 py-0.5 rounded border border-gray-600">+ 色を追加</button>
+                        <div class="flex items-center gap-1 flex-1">
+                            <span class="text-[10px] text-gray-400">角度</span>
+                            <input type="range" id="bgGradAngle" min="0" max="360" value="90" class="w-full">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ③ 選択中レイヤーの個別編集エリア -->
+            <div id="inspectorPanel" class="space-y-2 bg-[#010409] p-2.5 rounded border border-[#30363d] hidden">
+                <div class="flex justify-between items-center border-b border-[#30363d] pb-1">
+                    <label id="inspectorTitle" class="text-xs font-bold text-[#79c0ff]">レイヤー編集</label>
+                    <button id="deleteLayerBtn" class="bg-red-900/60 hover:bg-red-800 text-red-200 text-[10px] px-2 py-0.5 rounded border border-red-700">削除</button>
+                </div>
+
+                <!-- 共通プロパティ：回転・傾き -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <span class="text-[10px] text-gray-400">回転 [傾き度合い]</span>
+                        <input type="number" id="layerRotation" value="0" min="-180" max="180" class="input-ui">
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-gray-400">回転スライダー</span>
+                        <input type="range" id="layerRotationRange" min="-180" max="180" value="0" class="w-full">
+                    </div>
+                </div>
+
+                <!-- A. テキスト専用プロパティ -->
+                <div id="textInspector" class="space-y-2 hidden">
+                    <div>
+                        <span class="text-[10px] text-gray-400">テキスト内容</span>
+                        <textarea id="textContent" class="input-ui h-12 text-xs"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-gray-400">フォント</span>
+                            <select id="fontFamily" class="input-ui">
+                                <option value="'Corporate Logo Rounded', sans-serif">★ コーポレート・ロゴ丸</option>
+                                <option value="'Dela Gothic One', cursive">Dela Gothic (極太インパクト)</option>
+                                <option value="'DotGothic16', sans-serif">ドット絵風 (DotGothic16)</option>
+                                <option value="'Impact', sans-serif">インパクト (Impact)</option>
+                                <option value="'Potta One', cursive">ポップステッキ風 (Potta One)</option>
+                                <option value="'Mochiy Pop P One', sans-serif">もちじポップ (POP)</option>
+                                <option value="'M PLUS Rounded 1c', sans-serif">M PLUS 丸ゴシック</option>
+                                <option value="'Zen Maru Gothic', sans-serif">Zen丸ゴシック</option>
+                                <option value="'Kiwi Maru', serif">キウイマルフ</option>
+                                <option value="'Yusei Magic', sans-serif">油性マジック風</option>
+                                <option value="'RocknRoll One', sans-serif">ロックンロール</option>
+                                <option value="'Kaisei Tokumin', serif">勝星明朝 (和風)</option>
+                                <option value="sans-serif">標準ゴシック体</option>
+                                <option value="serif">標準明朝体</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-400">文字サイズ</span>
+                            <input type="number" id="textSize" value="70" min="10" max="250" class="input-ui">
+                        </div>
+                    </div>
+
+                    <!-- 文字装飾トグル -->
+                    <div>
+                        <span class="text-[10px] text-gray-400 block mb-1">文字スタイル・装飾</span>
+                        <div class="flex gap-1">
+                            <button id="btnBold" class="btn-toggle flex-1 font-bold">B (太字)</button>
+                            <button id="btnItalic" class="btn-toggle flex-1 italic">I (斜体)</button>
+                            <button id="btnUnderline" class="btn-toggle flex-1 underline">U (下線)</button>
+                            <button id="btnStrike" class="btn-toggle flex-1 line-through">S (消し線)</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-gray-400">配置方法</span>
+                            <select id="textAlign" class="input-ui">
+                                <option value="center">中央揃え</option>
+                                <option value="left">左揃え</option>
+                                <option value="right">右揃え</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-400">円形カーブ角度 @-180~180@</span>
+                            <input type="range" id="textCurve" min="-180" max="180" value="0" class="w-full">
+                        </div>
+                    </div>
+
+                    <div class="bg-[#161b22] p-2 rounded border border-[#30363d] space-y-1">
+                        <span class="text-[10px] font-bold text-gray-300">文字色 (単色 / マルチグラデーション)</span>
+                        <div id="textColorPickers" class="flex flex-wrap gap-1 items-center"></div>
+                        <button id="addTextColorBtn" class="bg-gray-800 text-[10px] px-2 py-0.5 rounded border border-gray-600 mt-1">+ 色を追加</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">内縁色</span><input type="color" id="innerColor" value="#000000" class="w-full h-5 rounded cursor-pointer"></div>
+                        <div><span class="text-[10px] text-gray-400">内縁太さ</span><input type="number" id="innerWidth" value="8" min="0" max="30" class="input-ui"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">外縁色</span><input type="color" id="outerColor" value="#ff0000" class="w-full h-5 rounded cursor-pointer"></div>
+                        <div><span class="text-[10px] text-gray-400">外縁太さ</span><input type="number" id="outerWidth" value="6" min="0" max="30" class="input-ui"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">影色</span><input type="color" id="shadowColor" value="#000000" class="w-full h-5 rounded cursor-pointer"></div>
+                        <div><span class="text-[10px] text-gray-400">影ぼかし</span><input type="number" id="shadowBlur" value="10" min="0" max="50" class="input-ui"></div>
+                    </div>
+                </div>
+
+                <!-- B. サブ画像専用プロパティ -->
+                <div id="imageInspector" class="space-y-2 hidden">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-gray-400">スケール (サイズ)</span>
+                            <input type="range" id="imgScale" min="0.1" max="3.0" step="0.05" value="1.0" class="w-full">
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-400">フィルター</span>
+                            <select id="imgFilter" class="input-ui">
+                                <option value="none">ノーマル</option>
+                                <option value="rainbow">🌈 ギラギラ本物レインボー</option>
+                                <option value="glow">輝く</option>
+                                <option value="grayscale">白黒</option>
+                                <option value="sepia">レトロ</option>
+                                <option value="invert">サイバー</option>
+                                <option value="vivid">高彩度</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">画像縁取り色</span><input type="color" id="imgBorderColor" value="#ffffff" class="w-full h-5 rounded cursor-pointer"></div>
+                        <div><span class="text-[10px] text-gray-400">縁の太さ</span><input type="number" id="imgBorderWidth" value="0" min="0" max="30" class="input-ui"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">ぼかし @0-20@</span><input type="range" id="imgBlur" min="0" max="20" value="0" class="w-full"></div>
+                        <div><span class="text-[10px] text-gray-400">明るさ @20-150@</span><input type="range" id="imgBrightness" min="20" max="150" value="100" class="w-full"></div>
+                    </div>
+                </div>
+
+                <!-- C. 図形専用プロパティ -->
+                <div id="shapeInspector" class="space-y-2 hidden">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-gray-400">図形タイプ</span>
+                            <select id="shapeType" class="input-ui">
+                                <option value="rect">長方形</option>
+                                <option value="circle">円形</option>
+                                <option value="line">直線</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-400">枠線の太さ</span>
+                            <input type="number" id="shapeStrokeWidth" value="4" min="0" max="30" class="input-ui">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">横幅 (W)</span><input type="number" id="shapeW" value="300" min="10" max="1280" class="input-ui"></div>
+                        <div><span class="text-[10px] text-gray-400">縦幅 (H)</span><input type="number" id="shapeH" value="150" min="10" max="720" class="input-ui"></div>
+                    </div>
+
+                    <div><span class="text-[10px] text-gray-400">枠線の色</span><input type="color" id="shapeStrokeColor" value="#ffffff" class="w-full h-5 rounded cursor-pointer"></div>
+
+                    <div class="bg-[#161b22] p-2 rounded border border-[#30363d] space-y-1">
+                        <span class="text-[10px] font-bold text-gray-300">図形塗りつぶし色</span>
+                        <div id="shapeColorsPickers" class="flex flex-wrap gap-1 items-center"></div>
+                        <button id="addShapeColorBtn" class="bg-gray-800 text-[10px] px-2 py-0.5 rounded border border-gray-600 mt-1">+ 色を追加</button>
+                    </div>
+                </div>
+
+                <!-- D. モザイク専用プロパティ -->
+                <div id="mosaicInspector" class="space-y-2 hidden">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-[10px] text-gray-400">形状</span>
+                            <select id="mosaicShape" class="input-ui">
+                                <option value="rect">長方形</option>
+                                <option value="circle">円形</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-400">モザイク強度 @5-50@</span>
+                            <input type="range" id="mosaicTileSize" min="5" max="50" value="15" class="w-full">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-[10px] text-gray-400">幅 (W)</span><input type="number" id="mosaicW" value="250" min="20" max="1280" class="input-ui"></div>
+                        <div><span class="text-[10px] text-gray-400">高さ (H)</span><input type="number" id="mosaicH" value="150" min="20" max="720" class="input-ui"></div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- 右：メインキャンバスプレビュー -->
+        <div class="flex-1 panel relative flex flex-col items-center justify-center p-4 bg-[#010409] overflow-hidden">
+            <div class="text-xs text-gray-400 absolute top-2 left-2 z-10">🖥️ Canvas (1280 x 720) — マウスドラッグで移動</div>
+            <div class="relative max-w-full max-h-full flex items-center justify-center">
+                <canvas id="mainCanvas" width="1280" height="720" class="max-w-full max-h-[78vh] border border-gray-700 shadow-2xl cursor-grab active:cursor-grabbing object-contain bg-black"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let bgImage = null;
+    let bgBlur = 0;
+    let bgBrightness = 100;
+    let bgFilter = 'none';
+    let bgRotation = 0;
+    let bgColors = ['#1a1e29', '#0a0c10'];
+    let bgGradAngle = 90;
+
+    let layers = [];
+    let activeLayer = null;
+
+    const filterMap = {
+        none: '',
+        glow: 'drop-shadow(0 0 15px rgba(255,255,255,0.8)) brightness(1.2)',
+        grayscale: 'grayscale(100%)',
+        sepia: 'sepia(100%)',
+        invert: 'invert(100%)',
+        hue: 'hue-rotate(180deg)',
+        vivid: 'saturate(250%) contrast(120%)',
+        vintage: 'sepia(40%) contrast(110%) brightness(90%)',
+        cool: 'hue-rotate(180deg) saturate(120%)',
+        warm: 'sepia(30%) saturate(140%)'
+    };
+
+    // --- レイヤーの上下順序変更ロジック ---
+    document.getElementById('moveLayerUpBtn').onclick = () => {
+        if (!activeLayer) return;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if (idx < layers.length - 1) {
+            const temp = layers[idx];
+            layers[idx] = layers[idx + 1];
+            layers[idx + 1] = temp;
+            renderLayerList();
+            render();
+        }
+    };
+
+    document.getElementById('moveLayerDownBtn').onclick = () => {
+        if (!activeLayer) return;
+        const idx = layers.findIndex(l => l.id === activeLayer.id);
+        if (idx > 0) {
+            const temp = layers[idx];
+            layers[idx] = layers[idx - 1];
+            layers[idx - 1] = temp;
+            renderLayerList();
+            render();
+        }
+    };
+
+    // --- 背景入力イベント ---
+    document.getElementById('bgFileInput').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => { bgImage = img; render(); };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    document.getElementById('bgBlur').oninput = (e) => { bgBlur = e.target.value; render(); };
+    document.getElementById('bgBrightness').oninput = (e) => { bgBrightness = e.target.value; render(); };
+    document.getElementById('bgFilter').onchange = (e) => { bgFilter = e.target.value; render(); };
+    document.getElementById('bgRotation').oninput = (e) => { bgRotation = parseInt(e.target.value); render(); };
+    document.getElementById('bgGradAngle').oninput = (e) => { bgGradAngle = parseInt(e.target.value); render(); };
+
+    function renderBgColorPickers() {
+        const container = document.getElementById('bgColorPickers');
+        container.innerHTML = '';
+        bgColors.forEach((col, idx) => {
+            const input = document.createElement('input'); input.type = 'color'; input.value = col; input.className = 'w-6 h-6 rounded cursor-pointer bg-transparent';
+            input.oninput = (e) => { bgColors[idx] = e.target.value; render(); };
+            container.appendChild(input);
+            if (bgColors.length > 1) {
+                const delBtn = document.createElement('span'); delBtn.innerText = '×'; delBtn.className = 'text-xs text-red-400 cursor-pointer mr-1 font-bold';
+                delBtn.onclick = () => { bgColors.splice(idx, 1); renderBgColorPickers(); render(); };
+                container.appendChild(delBtn);
+            }
+        });
+    }
+    document.getElementById('addBgColorBtn').onclick = () => { bgColors.push('#ff0055'); renderBgColorPickers(); render(); };
+    renderBgColorPickers();
+
+    // --- レイヤー追加 ---
+    document.getElementById('subFileInput').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const layer = {
+                    id: Date.now(), type: 'image', name: `画像 (${layers.filter(l=>l.type==='image').length+1})`,
+                    img: img, x: 640, y: 360, scale: 1.0, rotation: 0, filter: 'none',
+                    borderColor: '#ffffff', borderWidth: 0, blur: 0, brightness: 100
+                };
+                layers.push(layer); selectLayer(layer);
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    document.getElementById('addTextBtn').onclick = () => {
+        const layer = {
+            id: Date.now(), type: 'text', name: `文字 (${layers.filter(l=>l.type==='text').length+1})`,
+            text: "神回！爆速サムネ", x: 640, y: 250, font: "'Corporate Logo Rounded', sans-serif",
+            size: 80, rotation: 0, align: 'center', curve: 0,
+            isBold: true, isItalic: false, isUnderline: false, isStrike: false,
+            colors: ['#ffee00', '#ff0055'], innerColor: '#000000', innerWidth: 10,
+            outerColor: '#cc0000', outerWidth: 8, shadowColor: '#000000', shadowBlur: 15
+        };
+        layers.push(layer); selectLayer(layer);
+    };
+
+    document.getElementById('addShapeBtn').onclick = () => {
+        const layer = {
+            id: Date.now(), type: 'shape', name: `図形 (${layers.filter(l=>l.type==='shape').length+1})`,
+            shapeType: 'rect', x: 640, y: 450, w: 400, h: 200, rotation: 0,
+            strokeColor: '#ffffff', strokeWidth: 4, colors: ['#00ffff', '#0055ff']
+        };
+        layers.push(layer); selectLayer(layer);
+    };
+
+    document.getElementById('addMosaicBtn').onclick = () => {
+        const layer = {
+            id: Date.now(), type: 'mosaic', name: `モザイク (${layers.filter(l=>l.type==='mosaic').length+1})`,
+            shape: 'rect', x: 640, y: 360, w: 300, h: 200, rotation: 0, tileSize: 15
+        };
+        layers.push(layer); selectLayer(layer);
+    };
+
+    // --- 文字装飾トグル処理 ---
+    const btnBold = document.getElementById('btnBold');
+    const btnItalic = document.getElementById('btnItalic');
+    const btnUnderline = document.getElementById('btnUnderline');
+    const btnStrike = document.getElementById('btnStrike');
+
+    btnBold.onclick = () => { if (activeLayer && activeLayer.type==='text') { activeLayer.isBold = !activeLayer.isBold; updateToggleState(); render(); } };
+    btnItalic.onclick = () => { if (activeLayer && activeLayer.type==='text') { activeLayer.isItalic = !activeLayer.isItalic; updateToggleState(); render(); } };
+    btnUnderline.onclick = () => { if (activeLayer && activeLayer.type==='text') { activeLayer.isUnderline = !activeLayer.isUnderline; updateToggleState(); render(); } };
+    btnStrike.onclick = () => { if (activeLayer && activeLayer.type==='text') { activeLayer.isStrike = !activeLayer.isStrike; updateToggleState(); render(); } };
+
+    function updateToggleState() {
+        if (!activeLayer || activeLayer.type !== 'text') return;
+        btnBold.classList.toggle('active', !!activeLayer.isBold);
+        btnItalic.classList.toggle('active', !!activeLayer.isItalic);
+        btnUnderline.classList.toggle('active', !!activeLayer.isUnderline);
+        btnStrike.classList.toggle('active', !!activeLayer.isStrike);
+    }
+
+    function selectLayer(layer) {
+        activeLayer = layer;
+        renderLayerList();
+
+        if (!layer) {
+            inspectorPanel.classList.add('hidden');
+            render();
+            return;
+        }
+
+        inspectorPanel.classList.remove('hidden');
+        textInspector.classList.add('hidden');
+        imageInspector.classList.add('hidden');
+        shapeInspector.classList.add('hidden');
+        mosaicInspector.classList.add('hidden');
+
+        document.getElementById('layerRotation').value = layer.rotation || 0;
+        document.getElementById('layerRotationRange').value = layer.rotation || 0;
+
+        if (layer.type === 'text') {
+            document.getElementById('inspectorTitle').innerText = '📝 文字プロパティ';
+            textInspector.classList.remove('hidden');
+            document.getElementById('textContent').value = layer.text;
+            document.getElementById('fontFamily').value = layer.font;
+            document.getElementById('textSize').value = layer.size;
+            document.getElementById('textAlign').value = layer.align;
+            document.getElementById('textCurve').value = layer.curve;
+            document.getElementById('innerColor').value = layer.innerColor;
+            document.getElementById('innerWidth').value = layer.innerWidth;
+            document.getElementById('outerColor').value = layer.outerColor;
+            document.getElementById('outerWidth').value = layer.outerWidth;
+            document.getElementById('shadowColor').value = layer.shadowColor;
+            document.getElementById('shadowBlur').value = layer.shadowBlur;
+            updateToggleState();
+            renderTextColorsPickers();
+        } else if (layer.type === 'image') {
+            document.getElementById('inspectorTitle').innerText = '🖼️ 画像プロパティ';
+            imageInspector.classList.remove('hidden');
+            document.getElementById('imgScale').value = layer.scale;
+            document.getElementById('imgFilter').value = layer.filter;
+            document.getElementById('imgBorderColor').value = layer.borderColor;
+            document.getElementById('imgBorderWidth').value = layer.borderWidth;
+            document.getElementById('imgBlur').value = layer.blur;
+            document.getElementById('imgBrightness').value = layer.brightness;
+        } else if (layer.type === 'shape') {
+            document.getElementById('inspectorTitle').innerText = '🔷 図形プロパティ';
+            shapeInspector.classList.remove('hidden');
+            document.getElementById('shapeType').value = layer.shapeType;
+            document.getElementById('shapeW').value = layer.w;
+            document.getElementById('shapeH').value = layer.h;
+            document.getElementById('shapeStrokeColor').value = layer.strokeColor;
+            document.getElementById('shapeStrokeWidth').value = layer.strokeWidth;
+            renderShapeColorsPickers();
+        } else if (layer.type === 'mosaic') {
+            document.getElementById('inspectorTitle').innerText = '🟩 モザイクプロパティ';
+            mosaicInspector.classList.remove('hidden');
+            document.getElementById('mosaicShape').value = layer.shape;
+            document.getElementById('mosaicW').value = layer.w;
+            document.getElementById('mosaicH').value = layer.h;
+            document.getElementById('mosaicTileSize').value = layer.tileSize;
+        }
+
+        render();
+    }
+
+    function renderLayerList() {
+        const layerList = document.getElementById('layerList');
+        layerList.innerHTML = '';
+        [...layers].reverse().forEach(layer => {
+            const item = document.createElement('div');
+            item.className = `layer-item ${activeLayer && activeLayer.id === layer.id ? 'active' : ''}`;
+            item.innerHTML = `<span>${layer.name}</span><span class="text-[10px] text-gray-500">${layer.type}</span>`;
+            item.onclick = () => selectLayer(layer);
+            layerList.appendChild(item);
+        });
+    }
+
+    document.getElementById('layerRotation').oninput = (e) => { if (activeLayer) { activeLayer.rotation = parseInt(e.target.value); document.getElementById('layerRotationRange').value = activeLayer.rotation; render(); } };
+    document.getElementById('layerRotationRange').oninput = (e) => { if (activeLayer) { activeLayer.rotation = parseInt(e.target.value); document.getElementById('layerRotation').value = activeLayer.rotation; render(); } };
+
+    function updateTextLayer() {
+        if (!activeLayer || activeLayer.type !== 'text') return;
+        activeLayer.text = document.getElementById('textContent').value;
+        activeLayer.font = document.getElementById('fontFamily').value;
+        activeLayer.size = parseInt(document.getElementById('textSize').value);
+        activeLayer.align = document.getElementById('textAlign').value;
+        activeLayer.curve = parseInt(document.getElementById('textCurve').value);
+        activeLayer.innerColor = document.getElementById('innerColor').value;
+        activeLayer.innerWidth = parseInt(document.getElementById('innerWidth').value);
+        activeLayer.outerColor = document.getElementById('outerColor').value;
+        activeLayer.outerWidth = parseInt(document.getElementById('outerWidth').value);
+        activeLayer.shadowColor = document.getElementById('shadowColor').value;
+        activeLayer.shadowBlur = parseInt(document.getElementById('shadowBlur').value);
+        render();
+    }
+    ['textContent', 'fontFamily', 'textSize', 'textAlign', 'textCurve', 'innerColor', 'innerWidth', 'outerColor', 'outerWidth', 'shadowColor', 'shadowBlur'].forEach(id => {
+        document.getElementById(id).oninput = updateTextLayer;
+    });
+
+    function renderTextColorsPickers() {
+        const container = document.getElementById('textColorPickers');
+        container.innerHTML = '';
+        activeLayer.colors.forEach((col, idx) => {
+            const input = document.createElement('input'); input.type = 'color'; input.value = col; input.className = 'w-5 h-5 rounded cursor-pointer bg-transparent';
+            input.oninput = (e) => { activeLayer.colors[idx] = e.target.value; render(); };
+            container.appendChild(input);
+            if (activeLayer.colors.length > 1) {
+                const del = document.createElement('span'); del.innerText = '×'; del.className = 'text-xs text-red-400 cursor-pointer mr-1 font-bold';
+                del.onclick = () => { activeLayer.colors.splice(idx, 1); renderTextColorsPickers(); render(); };
+                container.appendChild(del);
+            }
+        });
+    }
+    document.getElementById('addTextColorBtn').onclick = () => { if (activeLayer && activeLayer.colors) { activeLayer.colors.push('#ffffff'); renderTextColorsPickers(); render(); } };
+
+    function updateImageLayer() {
+        if (!activeLayer || activeLayer.type !== 'image') return;
+        activeLayer.scale = parseFloat(document.getElementById('imgScale').value);
+        activeLayer.filter = document.getElementById('imgFilter').value;
+        activeLayer.borderColor = document.getElementById('imgBorderColor').value;
+        activeLayer.borderWidth = parseInt(document.getElementById('imgBorderWidth').value);
+        activeLayer.blur = parseInt(document.getElementById('imgBlur').value);
+        activeLayer.brightness = parseInt(document.getElementById('imgBrightness').value);
+        render();
+    }
+    ['imgScale', 'imgFilter', 'imgBorderColor', 'imgBorderWidth', 'imgBlur', 'imgBrightness'].forEach(id => {
+        document.getElementById(id).oninput = updateImageLayer;
+    });
+
+    function updateShapeLayer() {
+        if (!activeLayer || activeLayer.type !== 'shape') return;
+        activeLayer.shapeType = document.getElementById('shapeType').value;
+        activeLayer.w = parseInt(document.getElementById('shapeW').value);
+        activeLayer.h = parseInt(document.getElementById('shapeH').value);
+        activeLayer.strokeColor = document.getElementById('shapeStrokeColor').value;
+        activeLayer.strokeWidth = parseInt(document.getElementById('shapeStrokeWidth').value);
+        render();
+    }
+    ['shapeType', 'shapeW', 'shapeH', 'shapeStrokeColor', 'shapeStrokeWidth'].forEach(id => {
+        document.getElementById(id).oninput = updateShapeLayer;
+    });
+
+    function renderShapeColorsPickers() {
+        const container = document.getElementById('shapeColorsPickers');
+        container.innerHTML = '';
+        activeLayer.colors.forEach((col, idx) => {
+            const input = document.createElement('input'); input.type = 'color'; input.value = col; input.className = 'w-5 h-5 rounded cursor-pointer bg-transparent';
+            input.oninput = (e) => { activeLayer.colors[idx] = e.target.value; render(); };
+            container.appendChild(input);
+            if (activeLayer.colors.length > 1) {
+                const del = document.createElement('span'); del.innerText = '×'; del.className = 'text-xs text-red-400 cursor-pointer mr-1 font-bold';
+                del.onclick = () => { activeLayer.colors.splice(idx, 1); renderShapeColorsPickers(); render(); };
+                container.appendChild(del);
+            }
+        });
+    }
+    document.getElementById('addShapeColorBtn').onclick = () => { if (activeLayer && activeLayer.colors) { activeLayer.colors.push('#ffffff'); renderShapeColorsPickers(); render(); } };
+
+    function updateMosaicLayer() {
+        if (!activeLayer || activeLayer.type !== 'mosaic') return;
+        activeLayer.shape = document.getElementById('mosaicShape').value;
+        activeLayer.w = parseInt(document.getElementById('mosaicW').value);
+        activeLayer.h = parseInt(document.getElementById('mosaicH').value);
+        activeLayer.tileSize = parseInt(document.getElementById('mosaicTileSize').value);
+        render();
+    }
+    ['mosaicShape', 'mosaicW', 'mosaicH', 'mosaicTileSize'].forEach(id => {
+        document.getElementById(id).oninput = updateMosaicLayer;
+    });
+
+    document.getElementById('deleteLayerBtn').onclick = () => {
+        if (!activeLayer) return;
+        layers = layers.filter(l => l.id !== activeLayer.id);
+        selectLayer(null);
+    };
+
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    canvas.onmousedown = (e) => {
+        const { x, y } = getCanvasCoords(e);
+        for (let i = layers.length - 1; i >= 0; i--) {
+            const layer = layers[i];
+            const dist = Math.hypot(x - layer.x, y - layer.y);
+            if (dist < 150) {
+                selectLayer(layer);
+                isDragging = true;
+                dragOffset = { x: x - layer.x, y: y - layer.y };
+                return;
+            }
+        }
+        selectLayer(null);
+    };
+
+    canvas.onmousemove = (e) => {
+        if (!isDragging || !activeLayer) return;
+        const { x, y } = getCanvasCoords(e);
+        activeLayer.x = x - dragOffset.x;
+        activeLayer.y = y - dragOffset.y;
+        render();
+    };
+
+    canvas.onmouseup = () => isDragging = false;
+    canvas.onmouseleave = () => isDragging = false;
+
+    // --- 本物レインボーエフェクトを描画するヘルパー関数 ---
+    function drawRainbowMask(drawAction, width, height) {
+        const rainCanvas = document.createElement('canvas');
+        rainCanvas.width = width; rainCanvas.height = height;
+        const rCtx = rainCanvas.getContext('2d');
+
+        // 7色グラデーション
+        const grad = rCtx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, '#ff0000');
+        grad.addColorStop(0.16, '#ff7f00');
+        grad.addColorStop(0.33, '#ffff00');
+        grad.addColorStop(0.5, '#00ff00');
+        grad.addColorStop(0.66, '#0000ff');
+        grad.addColorStop(0.83, '#4b0082');
+        grad.addColorStop(1, '#9400d3');
+
+        rCtx.fillStyle = grad;
+        rCtx.fillRect(0, 0, width, height);
+        rCtx.globalCompositeOperation = 'destination-in';
+        drawAction(rCtx);
+
+        return rainCanvas;
+    }
+
+    // --- 🎨 メインレンダリングエンジン ---
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 下地マルチグラデーション
+        const rad = (bgGradAngle * Math.PI) / 180;
+        const x2 = canvas.width / 2 + Math.cos(rad) * canvas.width;
+        const y2 = canvas.height / 2 + Math.sin(rad) * canvas.height;
+        const grad = ctx.createLinearGradient(0, 0, x2, y2);
+        bgColors.forEach((col, i) => grad.addColorStop(i / Math.max(1, bgColors.length - 1), col));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. 背景画像描画
+        if (bgImage) {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((bgRotation * Math.PI) / 180);
+            
+            if (bgFilter === 'rainbow') {
+                ctx.filter = `blur(${bgBlur}px) brightness(${bgBrightness}%)`;
+                const rain = drawRainbowMask((rCtx) => {
+                    rCtx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+                }, canvas.width, canvas.height);
+                ctx.drawImage(rain, -canvas.width / 2, -canvas.height / 2);
+            } else {
+                ctx.filter = `blur(${bgBlur}px) brightness(${bgBrightness}%) ${filterMap[bgFilter] || ''}`;
+                ctx.drawImage(bgImage, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+            }
+            ctx.restore();
+        }
+
+        // 3. 各レイヤー描画 (底から順にレイヤーを重ねる)
+        layers.forEach(layer => {
+            ctx.save();
+            ctx.translate(layer.x, layer.y);
+            ctx.rotate(((layer.rotation || 0) * Math.PI) / 180);
+
+            if (layer.type === 'shape') {
+                ctx.lineWidth = layer.strokeWidth;
+                ctx.strokeStyle = layer.strokeColor;
+
+                let shapeFill = layer.colors[0];
+                if (layer.colors.length > 1) {
+                    const g = ctx.createLinearGradient(-layer.w / 2, 0, layer.w / 2, 0);
+                    layer.colors.forEach((c, idx) => g.addColorStop(idx / (layer.colors.length - 1), c));
+                    shapeFill = g;
+                }
+                ctx.fillStyle = shapeFill;
+
+                if (layer.shapeType === 'rect') {
+                    ctx.fillRect(-layer.w / 2, -layer.h / 2, layer.w, layer.h);
+                    if (layer.strokeWidth > 0) ctx.strokeRect(-layer.w / 2, -layer.h / 2, layer.w, layer.h);
+                } else if (layer.shapeType === 'circle') {
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, layer.w / 2, layer.h / 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (layer.strokeWidth > 0) ctx.stroke();
+                } else if (layer.shapeType === 'line') {
+                    ctx.beginPath();
+                    ctx.moveTo(-layer.w / 2, 0); ctx.lineTo(layer.w / 2, 0);
+                    ctx.stroke();
+                }
+            }
+            else if (layer.type === 'image') {
+                const w = layer.img.width * layer.scale;
+                const h = layer.img.height * layer.scale;
+
+                if (layer.borderWidth > 0) {
+                    ctx.lineWidth = layer.borderWidth;
+                    ctx.strokeStyle = layer.borderColor;
+                    ctx.strokeRect(-w / 2, -h / 2, w, h);
+                }
+
+                if (layer.filter === 'rainbow') {
+                    ctx.filter = `blur(${layer.blur}px) brightness(${layer.brightness}%)`;
+                    const rain = drawRainbowMask((rCtx) => {
+                        rCtx.drawImage(layer.img, 0, 0, w, h);
+                    }, w, h);
+                    ctx.drawImage(rain, -w / 2, -h / 2);
+                } else {
+                    ctx.filter = `blur(${layer.blur}px) brightness(${layer.brightness}%) ${filterMap[layer.filter] || ''}`;
+                    ctx.drawImage(layer.img, -w / 2, -h / 2, w, h);
+                }
+            }
+            else if (layer.type === 'text') {
+                const styleStr = `${layer.isBold ? 'bold ' : ''}${layer.isItalic ? 'italic ' : ''}`;
+                ctx.font = `${styleStr}${layer.size}px ${layer.font}`;
+                ctx.textAlign = layer.align;
+                ctx.textBaseline = 'middle';
+                ctx.lineJoin = 'round';
+
+                let textFill = layer.colors[0];
+                if (layer.colors.length > 1) {
+                    const g = ctx.createLinearGradient(-200, 0, 200, 0);
+                    layer.colors.forEach((c, idx) => g.addColorStop(idx / (layer.colors.length - 1), c));
+                    textFill = g;
+                }
+
+                const lines = layer.text.split('\n');
+                const lineHeight = layer.size * 1.2;
+                const startY = -((lines.length - 1) * lineHeight) / 2;
+
+                lines.forEach((line, idx) => {
+                    const curY = startY + (idx * lineHeight);
+                    if (layer.shadowBlur > 0) { ctx.shadowColor = layer.shadowColor; ctx.shadowBlur = layer.shadowBlur; }
+                    if (layer.outerWidth > 0) { ctx.strokeStyle = layer.outerColor; ctx.lineWidth = layer.innerWidth + layer.outerWidth * 2; ctx.strokeText(line, 0, curY); ctx.shadowBlur = 0; }
+                    if (layer.innerWidth > 0) { ctx.strokeStyle = layer.innerColor; ctx.lineWidth = layer.innerWidth; ctx.strokeText(line, 0, curY); ctx.shadowBlur = 0; }
+                    ctx.fillStyle = textFill;
+                    ctx.fillText(line, 0, curY);
+
+                    // 下線 ＆ 取り消し線
+                    const textWidth = ctx.measureText(line).width;
+                    let lineX = -textWidth / 2;
+                    if (layer.align === 'left') lineX = 0;
+                    if (layer.align === 'right') lineX = -textWidth;
+
+                    if (layer.isUnderline) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = textFill;
+                        ctx.lineWidth = Math.max(2, layer.size / 15);
+                        ctx.moveTo(lineX, curY + layer.size / 2);
+                        ctx.lineTo(lineX + textWidth, curY + layer.size / 2);
+                        ctx.stroke();
+                    }
+                    if (layer.isStrike) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = textFill;
+                        ctx.lineWidth = Math.max(2, layer.size / 15);
+                        ctx.moveTo(lineX, curY);
+                        ctx.lineTo(lineX + textWidth, curY);
+                        ctx.stroke();
+                    }
+                });
+            }
+            else if (layer.type === 'mosaic') {
+                ctx.restore();
+                const mx = Math.floor(layer.x - layer.w / 2);
+                const my = Math.floor(layer.y - layer.h / 2);
+                const mw = Math.max(10, layer.w);
+                const mh = Math.max(10, layer.h);
+
+                try {
+                    const imgData = ctx.getImageData(mx, my, mw, mh);
+                    const size = layer.tileSize;
+                    for (let y = 0; y < mh; y += size) {
+                        for (let x = 0; x < mw; x += size) {
+                            const p = (y * mw + x) * 4;
+                            ctx.fillStyle = `rgb(${imgData.data[p]},${imgData.data[p+1]},${imgData.data[p+2]})`;
+                            if (layer.shape === 'rect') {
+                                ctx.fillRect(mx + x, my + y, size, size);
+                            } else {
+                                ctx.beginPath();
+                                ctx.arc(mx + x + size/2, my + y + size/2, size/2, 0, Math.PI*2);
+                                ctx.fill();
+                            }
+                        }
+                    }
+                } catch(e) {}
+                ctx.save();
+            }
+
+            // 選択枠表示
+            if (activeLayer && activeLayer.id === layer.id) {
+                ctx.strokeStyle = '#58a6ff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 6]);
+                ctx.strokeRect(-100, -50, 200, 100);
+            }
+
+            ctx.restore();
+        });
+    }
+
+    document.getElementById('exportPngBtn').onclick = () => {
+        const prev = activeLayer;
+        activeLayer = null;
+        render();
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = `yujitsu_thumbnail_pro_${Date.now()}.png`;
+        a.click();
+        activeLayer = prev;
+        render();
+    };
+
+    render();
+</script>
+</body>
+</html>
